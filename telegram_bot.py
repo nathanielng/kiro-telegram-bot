@@ -11,6 +11,7 @@ Requires: TELEGRAM_API_KEY, TELEGRAM_CHAT_ID, AWS_REGION (optional)
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -30,11 +31,15 @@ def get_config():
     return api_key, chat_id, region
 
 
+def strip_ansi(text):
+    return re.sub(r'\x1b\[[0-9;]*m', '', text)
+
+
 def send_message(api_key, chat_id, text):
     try:
         requests.post(
             f"https://api.telegram.org/bot{api_key}/sendMessage",
-            json={"chat_id": chat_id, "text": text},
+            json={"chat_id": chat_id, "text": strip_ansi(text)},
             timeout=10
         )
     except Exception as e:
