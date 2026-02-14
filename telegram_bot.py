@@ -5,6 +5,7 @@ Telegram Bot with AWS Bedrock Integration and Kiro CLI
 Supports two modes:
 - /chat: Send prompts to Bedrock (default)
 - /code: Send prompts to Kiro CLI
+- /help: Show available commands
 
 Requires: TELEGRAM_API_KEY, TELEGRAM_CHAT_ID, AWS_REGION (optional)
 """
@@ -106,6 +107,13 @@ def main():
                         elif user_text == "/code":
                             mode = "code"
                             reply = "Switched to code mode (Kiro CLI)"
+                        elif user_text == "/help":
+                            reply = (
+                                "Available commands:\n"
+                                "/chat - Switch to Bedrock chat mode\n"
+                                "/code - Switch to Kiro CLI mode\n"
+                                "/help - Show this help message"
+                            )
                         else:
                             if mode == "chat":
                                 reply = invoke_bedrock(bedrock, user_text)
