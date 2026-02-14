@@ -60,7 +60,7 @@ def invoke_bedrock(bedrock, prompt):
 def invoke_kiro(prompt):
     try:
         result = subprocess.run(
-            ["kiro-cli", "chat", "--non-interactive", "--prompt", prompt],
+            ["kiro-cli", "chat", "--no-interactive", prompt],
             capture_output=True,
             text=True,
             timeout=300
