@@ -1,0 +1,7 @@
+# Environment variables (may contain secrets and deployment outputs)
+.env
+.env.backup
+
+# Python
+__pycache__/
+*.pyc
