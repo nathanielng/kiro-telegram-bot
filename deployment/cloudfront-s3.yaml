@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CloudFront distribution with S3 origin for serving static site content
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: Name of the S3 bucket to use as the CloudFront origin
+
+  CacheTTL:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    Description: Default cache TTL in seconds for CloudFront (0 = no caching)
+
+Conditions:
+  CachingEnabled: !Not [!Equals [!Ref CacheTTL, 0]]
+
+Resources:
+  CachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${AWS::StackName}-cache-policy"
+        DefaultTTL: !Ref CacheTTL
+        MinTTL: 0
+        MaxTTL: !If
+          - CachingEnabled
+          - 31536000
+          - 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          CookiesConfig:
+            CookieBehavior: none
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${S3BucketName}-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: S3Origin
+            DomainName: !Sub "${S3BucketName}.s3.amazonaws.com"
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          CachePolicyId: !Ref CachePolicy
+          Compress: true
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        HttpVersion: http2
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3BucketName
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${S3BucketName}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
+
+Outputs:
+  DistributionId:
+    Description: CloudFront Distribution ID
+    Value: !Ref CloudFrontDistribution
+
+  DistributionDomainName:
+    Description: CloudFront Distribution URL
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}"
