@@ -6,7 +6,37 @@ Parameters:
     Type: String
     Description: Name of the S3 bucket to use as the CloudFront origin
 
+  CacheTTL:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    Description: Default cache TTL in seconds for CloudFront (0 = no caching)
+
+Conditions:
+  CachingEnabled: !Not [!Equals [!Ref CacheTTL, 0]]
+
 Resources:
+  CachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${AWS::StackName}-cache-policy"
+        DefaultTTL: !Ref CacheTTL
+        MinTTL: 0
+        MaxTTL: !If
+          - CachingEnabled
+          - 31536000
+          - 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          CookiesConfig:
+            CookieBehavior: none
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
   OriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
@@ -37,7 +67,7 @@ Resources:
           CachedMethods:
             - GET
             - HEAD
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+          CachePolicyId: !Ref CachePolicy
           Compress: true
         ViewerCertificate:
           CloudFrontDefaultCertificate: true

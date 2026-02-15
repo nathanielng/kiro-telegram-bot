@@ -9,19 +9,21 @@ S3_BUCKET_NAME="${DEPLOY_S3_BUCKET_NAME:?Environment variable DEPLOY_S3_BUCKET_N
 AWS_REGION="${AWS_REGION:-us-west-2}"
 STACK_NAME="${DEPLOY_STACK_NAME:-kiro-static-site}"
 SOURCE_DIR="${DEPLOY_SOURCE_DIR:-.}"
+CACHE_TTL="${DEPLOY_CACHE_TTL:-0}"
 
 echo "=== Deployment Configuration ==="
 echo "S3 Bucket:    ${S3_BUCKET_NAME}"
 echo "AWS Region:   ${AWS_REGION}"
 echo "Stack Name:   ${STACK_NAME}"
 echo "Source Dir:   ${SOURCE_DIR}"
+echo "Cache TTL:    ${CACHE_TTL}s"
 echo "================================"
 
 # --- Create S3 bucket if it does not exist ---
 echo ""
 echo "Checking if S3 bucket '${S3_BUCKET_NAME}' exists..."
 if aws s3api head-bucket --bucket "${S3_BUCKET_NAME}" 2>/dev/null; then
-    echo "Bucket already exists."
+    echo "✅ Bucket already exists."
 else
     echo "Bucket does not exist. Creating..."
     if [ "${AWS_REGION}" = "us-east-1" ]; then
@@ -34,7 +36,7 @@ else
             --region "${AWS_REGION}" \
             --create-bucket-configuration LocationConstraint="${AWS_REGION}"
     fi
-    echo "Bucket '${S3_BUCKET_NAME}' created."
+    echo "✅ Bucket '${S3_BUCKET_NAME}' created."
 fi
 
 # --- Upload static files to S3 ---
@@ -53,7 +55,7 @@ aws s3 sync "${SOURCE_DIR}" "s3://${S3_BUCKET_NAME}/" \
     --exclude "__pycache__/*" \
     --exclude ".git/*" \
     --exclude "deployment/*"
-echo "Upload complete."
+echo "✅ Upload complete."
 
 # --- Deploy CloudFormation stack ---
 echo ""
@@ -61,9 +63,12 @@ echo "Deploying CloudFormation stack '${STACK_NAME}'..."
 aws cloudformation deploy \
     --template-file "${TEMPLATE_FILE}" \
     --stack-name "${STACK_NAME}" \
-    --parameter-overrides S3BucketName="${S3_BUCKET_NAME}" \
+    --parameter-overrides \
+        S3BucketName="${S3_BUCKET_NAME}" \
+        CacheTTL="${CACHE_TTL}" \
     --region "${AWS_REGION}" \
     --no-fail-on-empty-changeset
+echo "✅ CloudFormation stack deployed."
 
 # --- Print stack outputs ---
 echo ""
@@ -75,4 +80,4 @@ aws cloudformation describe-stacks \
     --output table
 
 echo ""
-echo "Deployment complete."
+echo "✅ Deployment complete."
