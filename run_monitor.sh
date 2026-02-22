@@ -1,4 +1,7 @@
 #!/bin/bash
+# Run the folder monitor in the background.
+# The monitor watches KIRO_OUTPUT_DIR for new/modified files, redacts PII,
+# uploads them to S3, and sends Telegram notifications with CloudFront URLs.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="${VENV_DIR:-$HOME/.venv}"
@@ -17,11 +20,22 @@ if [ -z "$TELEGRAM_API_KEY" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
   exit 1
 fi
 
+if [ -z "$KIRO_OUTPUT_DIR" ]; then
+  echo "Error: KIRO_OUTPUT_DIR is not set"
+  echo "Add KIRO_OUTPUT_DIR to your .env file."
+  exit 1
+fi
+
+if [ -z "$S3_BUCKET_NAME" ]; then
+  echo "Error: S3_BUCKET_NAME is not set"
+  echo "Add S3_BUCKET_NAME to your .env file."
+  exit 1
+fi
+
 # Install uv if not already installed
 if ! command -v uv &> /dev/null; then
   echo "uv not found. Installing..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
-  # Source the uv environment so it's available in this session
   export PATH="$HOME/.local/bin:$PATH"
   if ! command -v uv &> /dev/null; then
     echo "Error: Failed to install uv"
@@ -41,6 +55,7 @@ if [ ! -d "$VENV_DIR" ]; then
   echo "Virtual environment created at $VENV_DIR."
 fi
 
-source "$VENV_DIR/bin/activate" && nohup uv run "${SCRIPT_DIR}/telegram_bot.py" > "${SCRIPT_DIR}/telegram_bot.log" 2>&1 &
-echo "Bot started in background. PID: $!"
-echo "View logs: tail -f ${SCRIPT_DIR}/telegram_bot.log"
+source "$VENV_DIR/bin/activate" && nohup uv run "${SCRIPT_DIR}/folder_monitor.py" > "${SCRIPT_DIR}/folder_monitor.log" 2>&1 &
+echo "Folder monitor started in background. PID: $!"
+echo "Watching: $KIRO_OUTPUT_DIR"
+echo "View logs: tail -f ${SCRIPT_DIR}/folder_monitor.log"
