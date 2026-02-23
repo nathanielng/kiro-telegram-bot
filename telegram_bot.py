@@ -190,7 +190,7 @@ def redact_key(value):
 
 def get_config():
     api_key = os.environ.get('TELEGRAM_API_KEY')
-    chat_id = os.environ.get('TELEGRAM_CHAT_ID')
+    chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()  # Optional now
     region = os.environ.get('AWS_REGION', 'us-west-2')
     kiro_output_dir = os.environ.get('KIRO_OUTPUT_DIR', '').strip()
     cloudfront_base_url = os.environ.get('CLOUDFRONT_BASE_URL', '').rstrip('/')
@@ -202,7 +202,7 @@ def get_config():
 
     logging.info("Environment variables loaded:")
     logging.info(f"  TELEGRAM_API_KEY: {redact_key(api_key)}")
-    logging.info(f"  TELEGRAM_CHAT_ID: {chat_id}")
+    logging.info(f"  TELEGRAM_CHAT_ID: {chat_id if chat_id else 'Not set (multi-user mode)'}")
     logging.info(f"  AWS_REGION: {region}")
     logging.info(f"  KIRO_OUTPUT_DIR: {kiro_output_dir}")
     logging.info(f"  CLOUDFRONT_BASE_URL: {cloudfront_base_url}")
@@ -211,8 +211,8 @@ def get_config():
     logging.info(f"  CHAT_HISTORY_SIZE: {chat_history_size}")
     logging.info(f"  BEDROCK_GUARDRAIL_ID: {guardrail_id if guardrail_id else 'Not configured'}")
 
-    if not api_key or not chat_id:
-        print("Error: TELEGRAM_API_KEY and TELEGRAM_CHAT_ID must be set")
+    if not api_key:
+        print("Error: TELEGRAM_API_KEY must be set")
         sys.exit(1)
 
     return api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, s3_bucket, chat_history_size, guardrail_id, guardrail_version
@@ -612,11 +612,6 @@ def main():
 
     bedrock = boto3.client('bedrock-runtime', region_name=region)
     offset = 0
-    mode = "chat"
-    awaiting_model = False
-    
-    # Load chat history
-    chat_history = load_chat_history()
 
     # Kiro CLI slash commands that should be passed through
     kiro_commands = {
@@ -648,7 +643,13 @@ def main():
     ]
     model_names = {m[0] for m in models}
 
-    print(f"Bot started. Monitoring chat {chat_id}")
+    if chat_id:
+        print(f"Bot started. Monitoring chat {chat_id} (single-user mode)")
+    else:
+        print(f"Bot started. Accepting messages from any user (multi-user mode)")
+    
+    # Track state per user
+    user_states = {}  # {chat_id: {"mode": "chat", "awaiting_model": False, "history": []}}
 
     while True:
         try:
@@ -664,11 +665,27 @@ def main():
                     offset = update["update_id"] + 1
 
                     if "message" in update and "text" in update["message"]:
+                        incoming_chat_id = str(update["message"]["chat"]["id"])
                         user_text = update["message"]["text"]
-                        print(f"Received: {user_text}")
+                        
+                        # If TELEGRAM_CHAT_ID is set, only respond to that chat
+                        if chat_id and incoming_chat_id != chat_id:
+                            continue
+                        
+                        print(f"Received from {incoming_chat_id}: {user_text}")
+                        
+                        # Initialize user state if new
+                        if incoming_chat_id not in user_states:
+                            user_states[incoming_chat_id] = {
+                                "mode": "chat",
+                                "awaiting_model": False,
+                                "history": []
+                            }
+                        
+                        state = user_states[incoming_chat_id]
 
                         # Handle model selection if awaiting
-                        if awaiting_model:
+                        if state["awaiting_model"]:
                             if user_text in model_names:
                                 reply, new_files, full_url, security_results = invoke_kiro(
                                     f"/model {user_text}",
@@ -676,24 +693,24 @@ def main():
                                     cloudfront_base_url,
                                     s3_prefix,
                                 )
-                                send_message(api_key, chat_id, reply)
+                                send_message(api_key, incoming_chat_id, reply)
                                 if full_url:
-                                    send_message(api_key, chat_id, f"📄 Full output: {full_url}")
+                                    send_message(api_key, incoming_chat_id, f"📄 Full output: {full_url}")
                                 
                                 # Show security results
                                 if security_results:
                                     for filename, passed, issues in security_results:
                                         if passed:
-                                            send_message(api_key, chat_id, f"✅ Security check passed: {filename}")
+                                            send_message(api_key, incoming_chat_id, f"✅ Security check passed: {filename}")
                                         else:
-                                            send_message(api_key, chat_id, f"❌ Security check failed: {filename}\n⚠️ Issues: {', '.join(issues)}\n🔒 File quarantined")
+                                            send_message(api_key, incoming_chat_id, f"❌ Security check failed: {filename}\n⚠️ Issues: {', '.join(issues)}\n🔒 File quarantined")
                                 
                                 # Force sync to S3
                                 sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
                                 
-                                awaiting_model = False
+                                state["awaiting_model"] = False
                             else:
-                                send_message(api_key, chat_id, f"Invalid model: {user_text}. Please select from the list.")
+                                send_message(api_key, incoming_chat_id, f"Invalid model: {user_text}. Please select from the list.")
                             continue
 
                         # Check if it's a Kiro CLI command (exact match or starts with pattern)
@@ -701,30 +718,29 @@ def main():
                                          for cmd in kiro_commands)
 
                         if user_text == "/chat":
-                            mode = "chat"
+                            state["mode"] = "chat"
                             reply = "Switched to chat mode (Bedrock)"
-                            send_message(api_key, chat_id, reply)
+                            send_message(api_key, incoming_chat_id, reply)
 
                         elif user_text == "/code":
-                            mode = "code"
+                            state["mode"] = "code"
                             reply = "Switched to code mode (Kiro CLI)"
-                            send_message(api_key, chat_id, reply)
+                            send_message(api_key, incoming_chat_id, reply)
 
                         elif user_text == "/status":
                             reply = check_monitor_status()
-                            send_message(api_key, chat_id, reply)
+                            send_message(api_key, incoming_chat_id, reply)
 
                         elif user_text == "/clear":
-                            chat_history = []
-                            save_chat_history(chat_history)
-                            send_message(api_key, chat_id, "✅ Chat history cleared")
+                            state["history"] = []
+                            send_message(api_key, incoming_chat_id, "✅ Chat history cleared")
 
                         elif user_text == "/model":
                             lines = ["Select model (type to search):"]
                             for name, credits, desc in models:
                                 lines.append(f"  {name:<23} {credits:<18} {desc}")
-                            send_message(api_key, chat_id, "\n".join(lines))
-                            awaiting_model = True
+                            send_message(api_key, incoming_chat_id, "\n".join(lines))
+                            state["awaiting_model"] = True
 
                         elif user_text == "/help":
                             reply = (
@@ -740,7 +756,7 @@ def main():
                                 "/prompts list, /prompts get, /prompts create\n"
                                 "/hooks, /usage, /mcp, /tangents"
                             )
-                            send_message(api_key, chat_id, reply)
+                            send_message(api_key, incoming_chat_id, reply)
 
                         elif is_kiro_cmd:
                             # Pass Kiro commands directly to Kiro CLI (no history for commands)
@@ -750,27 +766,26 @@ def main():
                                 cloudfront_base_url,
                                 s3_prefix,
                             )
-                            send_message(api_key, chat_id, reply)
+                            send_message(api_key, incoming_chat_id, reply)
                             
                             if full_url:
-                                send_message(api_key, chat_id, f"📄 Full output: {full_url}")
+                                send_message(api_key, incoming_chat_id, f"📄 Full output: {full_url}")
 
                             # Show security results
                             if security_results:
                                 for filename, passed, issues in security_results:
                                     if passed:
-                                        send_message(api_key, chat_id, f"✅ Security check passed: {filename}")
+                                        send_message(api_key, incoming_chat_id, f"✅ Security check passed: {filename}")
                                     else:
-                                        send_message(api_key, chat_id, f"❌ Security check failed: {filename}\n⚠️ Issues: {', '.join(issues)}\n🔒 File quarantined")
+                                        send_message(api_key, incoming_chat_id, f"❌ Security check failed: {filename}\n⚠️ Issues: {', '.join(issues)}\n🔒 File quarantined")
 
                             if new_files:
                                 lines = ["Files created by Kiro:"]
                                 for filename, url in new_files:
                                     lines.append(f"  {filename}: {url}")
-                                send_message(api_key, chat_id, "\n".join(lines))
+                                send_message(api_key, incoming_chat_id, "\n".join(lines))
                             
                             # Force sync to S3
-                            sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
                             sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
 
                         else:
@@ -778,20 +793,19 @@ def main():
                             if guardrail_id:
                                 passed, msg = check_guardrail(bedrock, user_text, guardrail_id, guardrail_version)
                                 if not passed:
-                                    send_message(api_key, chat_id, msg)
+                                    send_message(api_key, incoming_chat_id, msg)
                                     continue
                             
-                            if mode == "chat":
+                            if state["mode"] == "chat":
                                 reply = invoke_bedrock(bedrock, user_text)
-                                send_message(api_key, chat_id, reply)
+                                send_message(api_key, incoming_chat_id, reply)
                                 
                                 # Add to chat history
-                                chat_history = add_to_history(chat_history, "user", user_text, chat_history_size)
-                                chat_history = add_to_history(chat_history, "assistant", reply, chat_history_size)
-                                save_chat_history(chat_history)
+                                state["history"] = add_to_history(state["history"], "user", user_text, chat_history_size)
+                                state["history"] = add_to_history(state["history"], "assistant", reply, chat_history_size)
                             else:
                                 # Format history for Kiro
-                                history_prefix = format_history_for_kiro(chat_history)
+                                history_prefix = format_history_for_kiro(state["history"])
                                 
                                 reply, new_files, full_url, security_results = invoke_kiro(
                                     user_text,
@@ -800,32 +814,31 @@ def main():
                                     s3_prefix,
                                     history_prefix,
                                 )
-                                send_message(api_key, chat_id, reply)
+                                send_message(api_key, incoming_chat_id, reply)
                                 
                                 if full_url:
-                                    send_message(api_key, chat_id, f"📄 Full output: {full_url}")
+                                    send_message(api_key, incoming_chat_id, f"📄 Full output: {full_url}")
 
                                 # Show security results
                                 if security_results:
                                     for filename, passed, issues in security_results:
                                         if passed:
-                                            send_message(api_key, chat_id, f"✅ Security check passed: {filename}")
+                                            send_message(api_key, incoming_chat_id, f"✅ Security check passed: {filename}")
                                         else:
-                                            send_message(api_key, chat_id, f"❌ Security check failed: {filename}\n⚠️ Issues: {', '.join(issues)}\n🔒 File quarantined")
+                                            send_message(api_key, incoming_chat_id, f"❌ Security check failed: {filename}\n⚠️ Issues: {', '.join(issues)}\n🔒 File quarantined")
 
                                 if new_files:
                                     lines = ["Files created by Kiro:"]
                                     for filename, url in new_files:
                                         lines.append(f"  {filename}: {url}")
-                                    send_message(api_key, chat_id, "\n".join(lines))
+                                    send_message(api_key, incoming_chat_id, "\n".join(lines))
                                 
                                 # Force sync to S3
                                 sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
                                 
                                 # Add to chat history
-                                chat_history = add_to_history(chat_history, "user", user_text, chat_history_size)
-                                chat_history = add_to_history(chat_history, "assistant", reply, chat_history_size)
-                                save_chat_history(chat_history)
+                                state["history"] = add_to_history(state["history"], "user", user_text, chat_history_size)
+                                state["history"] = add_to_history(state["history"], "assistant", reply, chat_history_size)
 
                         print(f"Sent reply ({mode} mode)")
 
