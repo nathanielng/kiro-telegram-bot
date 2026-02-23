@@ -56,6 +56,8 @@ if [ ! -d "$VENV_DIR" ]; then
 fi
 
 source "$VENV_DIR/bin/activate" && mkdir -p "${SCRIPT_DIR}/log" && nohup uv run "${SCRIPT_DIR}/folder_monitor.py" > "${SCRIPT_DIR}/log/folder_monitor.log" 2>&1 &
-echo "Folder monitor started in background. PID: $!"
+MONITOR_PID=$!
+echo "$MONITOR_PID" > "${SCRIPT_DIR}/log/folder_monitor.pid"
+echo "Folder monitor started in background. PID: $MONITOR_PID"
 echo "Watching: $KIRO_OUTPUT_DIR"
 echo "View logs: tail -f ${SCRIPT_DIR}/log/folder_monitor.log"
