@@ -253,16 +253,96 @@ def build_url(file_path, kiro_output_dir, cloudfront_base_url, s3_prefix):
 # ---------------------------------------------------------------------------
 
 def strip_ansi(text):
+    """Remove ANSI escape codes from text."""
     return re.sub(r'\x1b\[[0-9;?]*[a-zA-Z]', '', text)
 
 
+def clean_kiro_output(text, kiro_output_dir="", cloudfront_base_url="", s3_prefix=""):
+    """Clean Kiro CLI output for Telegram display.
+    
+    Returns (cleaned_text, full_output_url or None).
+    """
+    # Strip ANSI codes
+    text = strip_ansi(text)
+    
+    # Remove verbose file diff markers (lines starting with background color codes)
+    # These are the +/- line numbers with syntax highlighting
+    lines = text.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        # Skip lines that look like diff output (start with + followed by line number)
+        if re.match(r'^\s*\+\s+\d+:', line):
+            continue
+        # Keep other lines
+        cleaned_lines.append(line)
+    
+    full_output_url = None
+    
+    # Truncate middle if output is very long (>100 lines)
+    if len(cleaned_lines) > 100:
+        # Save full output to file
+        if kiro_output_dir and cloudfront_base_url:
+            try:
+                output_file = Path(kiro_output_dir) / "kiro-full-output.txt"
+                output_file.write_text('\n'.join(cleaned_lines), encoding='utf-8')
+                
+                # Build CloudFront URL
+                if s3_prefix:
+                    full_output_url = f"{cloudfront_base_url}/{s3_prefix}/kiro-full-output.txt"
+                else:
+                    full_output_url = f"{cloudfront_base_url}/kiro-full-output.txt"
+            except Exception as e:
+                logging.error(f"Failed to save full output: {e}")
+        
+        head = cleaned_lines[:40]
+        tail = cleaned_lines[-40:]
+        omitted = len(cleaned_lines) - 80
+        cleaned_lines = head + [f"\n... ({omitted} lines omitted) ...\n"] + tail
+    
+    return '\n'.join(cleaned_lines).strip(), full_output_url
+
+
+def paginate_message(text, max_length=4000):
+    """Split long messages into chunks that fit Telegram's limit."""
+    if len(text) <= max_length:
+        return [text]
+    
+    chunks = []
+    current_chunk = ""
+    
+    for line in text.split('\n'):
+        if len(current_chunk) + len(line) + 1 > max_length:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = line + '\n'
+        else:
+            current_chunk += line + '\n'
+    
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    return chunks
+
+
 def send_message(api_key, chat_id, text):
+    """Send message to Telegram, automatically paginating if too long."""
     try:
-        requests.post(
-            f"https://api.telegram.org/bot{api_key}/sendMessage",
-            json={"chat_id": chat_id, "text": strip_ansi(text)},
-            timeout=10
-        )
+        chunks = paginate_message(text)
+        for i, chunk in enumerate(chunks):
+            if len(chunks) > 1:
+                # Add page indicator for multi-part messages
+                prefix = f"[Part {i+1}/{len(chunks)}]\n\n"
+                chunk = prefix + chunk
+            
+            requests.post(
+                f"https://api.telegram.org/bot{api_key}/sendMessage",
+                json={"chat_id": chat_id, "text": chunk},
+                timeout=10
+            )
+            # Small delay between chunks to maintain order
+            if i < len(chunks) - 1:
+                time.sleep(0.5)
     except Exception as e:
         print(f"Failed to send message: {e}")
 
@@ -310,7 +390,7 @@ def invoke_bedrock(bedrock, prompt):
 def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history_prefix=""):
     """Run kiro-cli and detect any files it creates in kiro_output_dir.
 
-    Returns (output_text, list_of_(filename, url) tuples).
+    Returns (output_text, list_of_(filename, url) tuples, full_output_url or None).
     """
     before = snapshot_dir(kiro_output_dir)
     
@@ -325,8 +405,10 @@ def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history
             timeout=300
         )
         output = result.stdout if result.stdout else result.stderr
+        # Clean the output for Telegram
+        output, full_output_url = clean_kiro_output(output, kiro_output_dir, cloudfront_base_url, s3_prefix)
     except Exception as e:
-        return f"Error: {e}", []
+        return f"Error: {e}", [], None
 
     after = snapshot_dir(kiro_output_dir)
     changed = new_files_since(before, after)
@@ -338,7 +420,7 @@ def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history
             if url:
                 urls.append((Path(file_path).name, url))
 
-    return output, urls
+    return output, urls, full_output_url
 
 
 # ---------------------------------------------------------------------------
@@ -412,13 +494,15 @@ def main():
                         # Handle model selection if awaiting
                         if awaiting_model:
                             if user_text in model_names:
-                                reply, new_files = invoke_kiro(
+                                reply, new_files, full_url = invoke_kiro(
                                     f"/model {user_text}",
                                     kiro_output_dir,
                                     cloudfront_base_url,
                                     s3_prefix,
                                 )
                                 send_message(api_key, chat_id, reply)
+                                if full_url:
+                                    send_message(api_key, chat_id, f"📄 Full output: {full_url}")
                                 awaiting_model = False
                             else:
                                 send_message(api_key, chat_id, f"Invalid model: {user_text}. Please select from the list.")
@@ -442,6 +526,11 @@ def main():
                             reply = check_monitor_status()
                             send_message(api_key, chat_id, reply)
 
+                        elif user_text == "/clear":
+                            chat_history = []
+                            save_chat_history(chat_history)
+                            send_message(api_key, chat_id, "✅ Chat history cleared")
+
                         elif user_text == "/model":
                             lines = ["Select model (type to search):"]
                             for name, credits, desc in models:
@@ -455,6 +544,7 @@ def main():
                                 "/chat - Switch to Bedrock chat mode\n"
                                 "/code - Switch to Kiro CLI mode\n"
                                 "/status - Check folder monitor status\n"
+                                "/clear - Clear chat history\n"
                                 "/help - Show this help message\n\n"
                                 "Kiro CLI commands (work in code mode):\n"
                                 "/context show, /context clear\n"
@@ -466,13 +556,16 @@ def main():
 
                         elif is_kiro_cmd:
                             # Pass Kiro commands directly to Kiro CLI (no history for commands)
-                            reply, new_files = invoke_kiro(
+                            reply, new_files, full_url = invoke_kiro(
                                 user_text,
                                 kiro_output_dir,
                                 cloudfront_base_url,
                                 s3_prefix,
                             )
                             send_message(api_key, chat_id, reply)
+                            
+                            if full_url:
+                                send_message(api_key, chat_id, f"📄 Full output: {full_url}")
 
                             if new_files:
                                 lines = ["Files created by Kiro:"]
@@ -493,7 +586,7 @@ def main():
                                 # Format history for Kiro
                                 history_prefix = format_history_for_kiro(chat_history)
                                 
-                                reply, new_files = invoke_kiro(
+                                reply, new_files, full_url = invoke_kiro(
                                     user_text,
                                     kiro_output_dir,
                                     cloudfront_base_url,
@@ -501,6 +594,9 @@ def main():
                                     history_prefix,
                                 )
                                 send_message(api_key, chat_id, reply)
+                                
+                                if full_url:
+                                    send_message(api_key, chat_id, f"📄 Full output: {full_url}")
 
                                 if new_files:
                                     lines = ["Files created by Kiro:"]
