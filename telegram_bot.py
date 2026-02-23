@@ -243,6 +243,9 @@ def generate_kiro_context(kiro_output_dir, cloudfront_base_url="", s3_prefix="")
 
     KIRO_STEERING_FILE.parent.mkdir(parents=True, exist_ok=True)
     
+    # Use relative path to avoid exposing username
+    relative_dir = Path(kiro_output_dir).name if '/' in kiro_output_dir else kiro_output_dir
+    
     # Build URL instruction if CloudFront is configured
     url_instruction = ""
     if cloudfront_base_url:
@@ -277,7 +280,7 @@ Replace `$FILENAME` with the actual filename (including any subdirectories relat
 When saving files, outputs, reports, code, or any other generated content,
 **always save them to the configured output directory** shown below.
 
-**Output Directory:** `{kiro_output_dir}`
+**Output Directory:** `{relative_dir}`
 {url_instruction}
 ## Naming Conventions
 
