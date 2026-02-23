@@ -31,12 +31,6 @@ from pathlib import Path
 import boto3
 import requests
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass  # env vars can be provided externally
-
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
@@ -45,6 +39,17 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 log = logging.getLogger(__name__)
+
+try:
+    from dotenv import load_dotenv
+    env_file = Path(__file__).parent / '.env'
+    if env_file.exists():
+        load_dotenv()
+        log.info(f"Loaded configuration from {env_file}")
+    else:
+        log.info("No .env file found, using environment variables for configuration")
+except ImportError:
+    log.warning("python-dotenv not installed, using environment variables for configuration")
 
 # ---------------------------------------------------------------------------
 # PII patterns
