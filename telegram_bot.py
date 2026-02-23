@@ -377,14 +377,15 @@ def clean_kiro_output(text, kiro_output_dir="", cloudfront_base_url="", s3_prefi
         cleaned_lines.append(line)
     
     full_output_url = None
+    full_text = '\n'.join(cleaned_lines)
     
-    # Truncate middle if output is very long (>100 lines)
-    if len(cleaned_lines) > 100:
+    # Truncate middle if output is more than 2 pages (>8000 chars)
+    if len(full_text) > 8000:
         # Save full output to file
         if kiro_output_dir and cloudfront_base_url:
             try:
                 output_file = Path(kiro_output_dir) / "kiro-full-output.txt"
-                output_file.write_text('\n'.join(cleaned_lines), encoding='utf-8')
+                output_file.write_text(full_text, encoding='utf-8')
                 
                 # Build CloudFront URL
                 if s3_prefix:
@@ -394,12 +395,13 @@ def clean_kiro_output(text, kiro_output_dir="", cloudfront_base_url="", s3_prefi
             except Exception as e:
                 logging.error(f"Failed to save full output: {e}")
         
-        head = cleaned_lines[:40]
-        tail = cleaned_lines[-40:]
-        omitted = len(cleaned_lines) - 80
-        cleaned_lines = head + [f"\n... ({omitted} lines omitted) ...\n"] + tail
+        # Keep first 3000 and last 3000 chars, remove middle
+        head = full_text[:3000]
+        tail = full_text[-3000:]
+        omitted_chars = len(full_text) - 6000
+        return f"{head}\n\n... ({omitted_chars} characters omitted) ...\n\n{tail}".strip(), full_output_url
     
-    return '\n'.join(cleaned_lines).strip(), full_output_url
+    return full_text.strip(), full_output_url
 
 
 def paginate_message(text, max_length=4000):
