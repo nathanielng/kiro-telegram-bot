@@ -13,6 +13,7 @@ Optional:  AWS_REGION, KIRO_OUTPUT_DIR, S3_BUCKET_NAME, S3_PREFIX,
 """
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -22,6 +23,8 @@ from pathlib import Path
 
 import boto3
 import requests
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 try:
     from dotenv import load_dotenv
@@ -37,6 +40,13 @@ KIRO_STEERING_FILE = Path(__file__).parent / ".kiro" / "steering" / "output-conf
 # Configuration
 # ---------------------------------------------------------------------------
 
+def redact_key(value):
+    """Redact middle portion of API keys, keeping first 4 and last 4 characters."""
+    if not value or len(value) <= 8:
+        return value
+    return f"{value[:4]}...{value[-4:]}"
+
+
 def get_config():
     api_key = os.environ.get('TELEGRAM_API_KEY')
     chat_id = os.environ.get('TELEGRAM_CHAT_ID')
@@ -44,6 +54,14 @@ def get_config():
     kiro_output_dir = os.environ.get('KIRO_OUTPUT_DIR', '').strip()
     cloudfront_base_url = os.environ.get('CLOUDFRONT_BASE_URL', '').rstrip('/')
     s3_prefix = os.environ.get('S3_PREFIX', '').strip('/')
+
+    logging.info("Environment variables loaded:")
+    logging.info(f"  TELEGRAM_API_KEY: {redact_key(api_key)}")
+    logging.info(f"  TELEGRAM_CHAT_ID: {chat_id}")
+    logging.info(f"  AWS_REGION: {region}")
+    logging.info(f"  KIRO_OUTPUT_DIR: {kiro_output_dir}")
+    logging.info(f"  CLOUDFRONT_BASE_URL: {cloudfront_base_url}")
+    logging.info(f"  S3_PREFIX: {s3_prefix}")
 
     if not api_key or not chat_id:
         print("Error: TELEGRAM_API_KEY and TELEGRAM_CHAT_ID must be set")
