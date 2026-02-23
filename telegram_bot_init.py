@@ -72,10 +72,10 @@ def extract_chat_id(data):
         sys.exit(1)
 
 
-def send_test_message(api_key, chat_id):
+def send_test_message(api_key, chat_id, message="Test message"):
     try:
         response = requests.get(f"https://api.telegram.org/bot{api_key}/sendMessage",
-                               params={"chat_id": chat_id, "text": "Test message"}, timeout=10)
+                               params={"chat_id": chat_id, "text": message}, timeout=10)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
@@ -88,7 +88,9 @@ def main():
     data = fetch_updates(api_key)
     save_updates(data)
     chat_id = extract_chat_id(data)
-    send_test_message(api_key, chat_id)
+
+    message = f"✅ Bot initialization successful!\n✅ Chat ID: {chat_id}"
+    response = send_test_message(api_key, chat_id, message)
 
     print("\n✅ Bot initialization successful!")
     print(f"✅ Chat ID: {chat_id}")
