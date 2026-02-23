@@ -12,3 +12,4 @@ __pycache__/
 # Application specific files
 kirobot-out/
 updates.json
+log/
