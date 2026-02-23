@@ -258,6 +258,13 @@ def main():
     offset = 0
     mode = "chat"
 
+    # Kiro CLI slash commands that should be passed through
+    kiro_commands = {
+        "/context show", "/context clear", "/model", "/agent list",
+        "/save", "/load", "/tools", "/prompts list", "/prompts get",
+        "/prompts create", "/hooks", "/usage", "/mcp", "/tangents"
+    }
+
     print(f"Bot started. Monitoring chat {chat_id}")
 
     while True:
@@ -277,6 +284,10 @@ def main():
                         user_text = update["message"]["text"]
                         print(f"Received: {user_text}")
 
+                        # Check if it's a Kiro CLI command (exact match or starts with pattern)
+                        is_kiro_cmd = any(user_text == cmd or user_text.startswith(cmd + " ") 
+                                         for cmd in kiro_commands)
+
                         if user_text == "/chat":
                             mode = "chat"
                             reply = "Switched to chat mode (Bedrock)"
@@ -292,9 +303,31 @@ def main():
                                 "Available commands:\n"
                                 "/chat - Switch to Bedrock chat mode\n"
                                 "/code - Switch to Kiro CLI mode\n"
-                                "/help - Show this help message"
+                                "/help - Show this help message\n\n"
+                                "Kiro CLI commands (work in code mode):\n"
+                                "/context show, /context clear\n"
+                                "/model, /agent list\n"
+                                "/save, /load\n"
+                                "/tools, /prompts list, /prompts get, /prompts create\n"
+                                "/hooks, /usage, /mcp, /tangents"
                             )
                             send_message(api_key, chat_id, reply)
+
+                        elif is_kiro_cmd:
+                            # Pass Kiro commands directly to Kiro CLI
+                            reply, new_files = invoke_kiro(
+                                user_text,
+                                kiro_output_dir,
+                                cloudfront_base_url,
+                                s3_prefix,
+                            )
+                            send_message(api_key, chat_id, reply)
+
+                            if new_files:
+                                lines = ["Files created by Kiro:"]
+                                for filename, url in new_files:
+                                    lines.append(f"  {filename}: {url}")
+                                send_message(api_key, chat_id, "\n".join(lines))
 
                         else:
                             if mode == "chat":
