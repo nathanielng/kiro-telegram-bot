@@ -5,10 +5,12 @@ Telegram bot with dual modes: chat with AWS Bedrock or execute commands via Kiro
 ## Features
 
 - **/chat mode**: Send prompts to AWS Bedrock (Claude Sonnet 4.5)
-- **/code mode**: Execute commands through Kiro CLI with interactive prompt support
-- **Interactive Kiro CLI**: PTY-based execution that handles mid-execution prompts via Telegram
+- **/code mode**: Execute commands through Kiro CLI with automatic file operations
+- **Chat history**: Tracks last 10 conversation exchanges for context
 - **Folder monitoring**: Automatic S3 upload and CloudFront URL sharing for generated files
+- **Output truncation**: Long outputs are automatically truncated with full version saved to S3
 - **PII redaction**: Optional privacy protection for uploaded files
+- **Auto-sync**: Files are immediately synced to S3 after each Kiro command
 - Long-polling for reliable message delivery
 - Background execution with logging
 - Auto-start on system boot (optional)
@@ -79,6 +81,9 @@ export CLOUDFRONT_BASE_URL='https://your-distribution.cloudfront.net'
 
 # PII Redaction
 export ENABLE_PII_REDACTION='true'  # Defaults to true
+
+# Chat History
+export CHAT_HISTORY_SIZE='10'  # Number of recent exchanges to track (default: 10)
 ```
 
 Add these to your `~/.bashrc` or `~/.zshrc` to persist.
@@ -107,7 +112,52 @@ tail -f log/telegram_bot.log
 - `/chat` - Switch to Bedrock chat mode (default)
 - `/code` - Switch to Kiro CLI mode
 - `/status` - Check folder monitor status
+- `/clear` - Clear chat history
 - Any other text - Processed based on current mode
+
+### Example Usage
+
+#### Basic Commands
+
+```
+/code
+Create a html css javascript todo application
+```
+
+```
+/clear
+```
+
+#### Sample Prompts for Code Mode
+
+**Todo Application:**
+```
+Create a html css javascript todo application
+```
+
+**Side-scrolling Game:**
+```
+Create a html css javascript side scrolling shooting game with scoring
+```
+
+**Data Visualization:**
+```
+Create a dashboard with charts showing sample sales data
+```
+
+**API Integration:**
+```
+Create a weather app that fetches data from a public API
+```
+
+#### Workflow Example
+
+1. Switch to code mode: `/code`
+2. Give Kiro a task: `Create a html css javascript todo application`
+3. Kiro creates the file and uploads to S3
+4. Bot sends you the CloudFront URL to view the app
+5. Continue the conversation: `Add a dark mode toggle`
+6. Clear history when starting a new project: `/clear`
 
 ## Project Structure
 
