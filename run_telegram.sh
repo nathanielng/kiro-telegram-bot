@@ -41,6 +41,6 @@ if [ ! -d "$VENV_DIR" ]; then
   echo "Virtual environment created at $VENV_DIR."
 fi
 
-source "$VENV_DIR/bin/activate" && nohup uv run "${SCRIPT_DIR}/telegram_bot.py" > "${SCRIPT_DIR}/telegram_bot.log" 2>&1 &
+source "$VENV_DIR/bin/activate" && mkdir -p "${SCRIPT_DIR}/log" && nohup uv run "${SCRIPT_DIR}/telegram_bot.py" > "${SCRIPT_DIR}/log/telegram_bot.log" 2>&1 &
 echo "Bot started in background. PID: $!"
-echo "View logs: tail -f ${SCRIPT_DIR}/telegram_bot.log"
+echo "View logs: tail -f ${SCRIPT_DIR}/log/telegram_bot.log"
