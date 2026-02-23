@@ -46,23 +46,25 @@ CHAT_HISTORY_FILE = Path(__file__).parent / "log" / "chat_history.json"
 # Chat history management
 # ---------------------------------------------------------------------------
 
-def load_chat_history():
-    """Load chat history from JSON file."""
-    if CHAT_HISTORY_FILE.exists():
+def load_chat_history(chat_id):
+    """Load chat history from JSON file for specific user."""
+    history_file = Path(__file__).parent / "log" / f"chat_history_{chat_id}.json"
+    if history_file.exists():
         try:
-            return json.loads(CHAT_HISTORY_FILE.read_text())
+            return json.loads(history_file.read_text())
         except Exception as e:
-            logging.warning(f"Failed to load chat history: {e}")
+            logging.warning(f"Failed to load chat history for {chat_id}: {e}")
     return []
 
 
-def save_chat_history(history):
-    """Save chat history to JSON file."""
+def save_chat_history(history, chat_id):
+    """Save chat history to JSON file for specific user."""
     try:
-        CHAT_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CHAT_HISTORY_FILE.write_text(json.dumps(history, indent=2))
+        history_file = Path(__file__).parent / "log" / f"chat_history_{chat_id}.json"
+        history_file.parent.mkdir(parents=True, exist_ok=True)
+        history_file.write_text(json.dumps(history, indent=2))
     except Exception as e:
-        logging.error(f"Failed to save chat history: {e}")
+        logging.error(f"Failed to save chat history for {chat_id}: {e}")
 
 
 def add_to_history(history, role, content, max_size):
@@ -679,7 +681,7 @@ def main():
                             user_states[incoming_chat_id] = {
                                 "mode": "chat",
                                 "awaiting_model": False,
-                                "history": []
+                                "history": load_chat_history(incoming_chat_id)
                             }
                         
                         state = user_states[incoming_chat_id]
@@ -732,8 +734,18 @@ def main():
                             send_message(api_key, incoming_chat_id, reply)
 
                         elif user_text == "/clear":
+                            # Archive current history with timestamp
+                            if state["history"]:
+                                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                                archive_file = Path(__file__).parent / "log" / f"chat_history_{incoming_chat_id}_{timestamp}.json"
+                                archive_file.parent.mkdir(parents=True, exist_ok=True)
+                                archive_file.write_text(json.dumps(state["history"], indent=2))
+                                logging.info(f"Archived chat history for {incoming_chat_id} to {archive_file.name}")
+                            
+                            # Clear and save empty history
                             state["history"] = []
-                            send_message(api_key, incoming_chat_id, "✅ Chat history cleared")
+                            save_chat_history(state["history"], incoming_chat_id)
+                            send_message(api_key, incoming_chat_id, "✅ Chat history cleared and archived")
 
                         elif user_text == "/model":
                             lines = ["Select model (type to search):"]
@@ -803,6 +815,7 @@ def main():
                                 # Add to chat history
                                 state["history"] = add_to_history(state["history"], "user", user_text, chat_history_size)
                                 state["history"] = add_to_history(state["history"], "assistant", reply, chat_history_size)
+                                save_chat_history(state["history"], incoming_chat_id)
                             else:
                                 # Format history for Kiro
                                 history_prefix = format_history_for_kiro(state["history"])
@@ -839,8 +852,9 @@ def main():
                                 # Add to chat history
                                 state["history"] = add_to_history(state["history"], "user", user_text, chat_history_size)
                                 state["history"] = add_to_history(state["history"], "assistant", reply, chat_history_size)
+                                save_chat_history(state["history"], incoming_chat_id)
 
-                        print(f"Sent reply ({mode} mode)")
+                        print(f"Sent reply ({state['mode']} mode)")
 
         except Exception as e:
             print(f"Error: {e}")
