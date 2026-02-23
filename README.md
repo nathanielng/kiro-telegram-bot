@@ -6,6 +6,7 @@ Telegram bot with dual modes: chat with AWS Bedrock or execute commands via Kiro
 
 - **/chat mode**: Send prompts to AWS Bedrock (Claude Sonnet 4.5)
 - **/code mode**: Execute commands through Kiro CLI with automatic file operations
+- **Security scanning**: Automatic security checks for generated HTML/CSS/JS files
 - **Chat history**: Tracks last 10 conversation exchanges for context
 - **Folder monitoring**: Automatic S3 upload and CloudFront URL sharing for generated files
 - **Output truncation**: Long outputs are automatically truncated with full version saved to S3
