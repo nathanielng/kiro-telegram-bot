@@ -55,7 +55,7 @@ if [ ! -d "$VENV_DIR" ]; then
   echo "Virtual environment created at $VENV_DIR."
 fi
 
-source "$VENV_DIR/bin/activate" && nohup uv run "${SCRIPT_DIR}/folder_monitor.py" > "${SCRIPT_DIR}/folder_monitor.log" 2>&1 &
+source "$VENV_DIR/bin/activate" && mkdir -p "${SCRIPT_DIR}/log" && nohup uv run "${SCRIPT_DIR}/folder_monitor.py" > "${SCRIPT_DIR}/log/folder_monitor.log" 2>&1 &
 echo "Folder monitor started in background. PID: $!"
 echo "Watching: $KIRO_OUTPUT_DIR"
-echo "View logs: tail -f ${SCRIPT_DIR}/folder_monitor.log"
+echo "View logs: tail -f ${SCRIPT_DIR}/log/folder_monitor.log"
