@@ -197,6 +197,8 @@ def get_config():
     s3_prefix = os.environ.get('S3_PREFIX', '').strip('/')
     s3_bucket = os.environ.get('S3_BUCKET_NAME', '').strip()
     chat_history_size = int(os.environ.get('CHAT_HISTORY_SIZE', '10'))
+    guardrail_id = os.environ.get('BEDROCK_GUARDRAIL_ID', '').strip()
+    guardrail_version = os.environ.get('BEDROCK_GUARDRAIL_VERSION', 'DRAFT').strip()
 
     logging.info("Environment variables loaded:")
     logging.info(f"  TELEGRAM_API_KEY: {redact_key(api_key)}")
@@ -207,12 +209,13 @@ def get_config():
     logging.info(f"  S3_PREFIX: {s3_prefix}")
     logging.info(f"  S3_BUCKET_NAME: {s3_bucket}")
     logging.info(f"  CHAT_HISTORY_SIZE: {chat_history_size}")
+    logging.info(f"  BEDROCK_GUARDRAIL_ID: {guardrail_id if guardrail_id else 'Not configured'}")
 
     if not api_key or not chat_id:
         print("Error: TELEGRAM_API_KEY and TELEGRAM_CHAT_ID must be set")
         sys.exit(1)
 
-    return api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, s3_bucket, chat_history_size
+    return api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, s3_bucket, chat_history_size, guardrail_id, guardrail_version
 
 
 # ---------------------------------------------------------------------------
@@ -480,11 +483,62 @@ def invoke_bedrock(bedrock, prompt):
         return f"Error: {e}"
 
 
+def check_guardrail(bedrock, text, guardrail_id, guardrail_version):
+    """Check text against Bedrock Guardrail.
+    
+    Returns (passed: bool, message: str).
+    """
+    try:
+        response = bedrock.apply_guardrail(
+            guardrailIdentifier=guardrail_id,
+            guardrailVersion=guardrail_version,
+            source='INPUT',
+            content=[{
+                'text': {'text': text}
+            }]
+        )
+        
+        action = response.get('action')
+        if action == 'GUARDRAIL_INTERVENED':
+            return False, "🛡️ Your input was blocked by the content guardrail."
+        return True, ""
+    except Exception as e:
+        logging.error(f"Guardrail check failed: {e}")
+        return True, ""  # Fail open on errors
+
+
+def is_sensitive_file_access(prompt):
+    """Check if prompt attempts to access sensitive files like .env"""
+    dangerous_patterns = [
+        r'!cat\s+.*\.env',
+        r'!cat\s+~/\.env',
+        r'!cat\s+\.\./\.env',
+        r'!less\s+.*\.env',
+        r'!more\s+.*\.env',
+        r'!head\s+.*\.env',
+        r'!tail\s+.*\.env',
+        r'!grep\s+.*\.env',
+        r'!vim\s+.*\.env',
+        r'!nano\s+.*\.env',
+        r'!open\s+.*\.env',
+    ]
+    
+    prompt_lower = prompt.lower()
+    for pattern in dangerous_patterns:
+        if re.search(pattern, prompt_lower):
+            return True
+    return False
+
+
 def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history_prefix=""):
     """Run kiro-cli and detect any files it creates in kiro_output_dir.
 
     Returns (output_text, list_of_(filename, url) tuples, full_output_url or None).
     """
+    # Block sensitive file access attempts
+    if is_sensitive_file_access(prompt):
+        return "⛔ Access to .env files is blocked for security reasons.", [], None, []
+    
     before = snapshot_dir(kiro_output_dir)
     
     # Prepend history if provided
@@ -545,7 +599,7 @@ def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history
 # ---------------------------------------------------------------------------
 
 def main():
-    api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, s3_bucket, chat_history_size = get_config()
+    api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, s3_bucket, chat_history_size, guardrail_id, guardrail_version = get_config()
 
     # Ensure output directory exists and update Kiro's steering file
     ensure_output_dir(kiro_output_dir)
@@ -715,6 +769,13 @@ def main():
                             sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
 
                         else:
+                            # Check guardrail if configured
+                            if guardrail_id:
+                                passed, msg = check_guardrail(bedrock, user_text, guardrail_id, guardrail_version)
+                                if not passed:
+                                    send_message(api_key, chat_id, msg)
+                                    continue
+                            
                             if mode == "chat":
                                 reply = invoke_bedrock(bedrock, user_text)
                                 send_message(api_key, chat_id, reply)
