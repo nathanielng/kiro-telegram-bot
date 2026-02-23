@@ -10,6 +10,7 @@ __pycache__/
 .DS_Store
 
 # Application specific files
+.kiro/steering/output-config.md
 kirobot-out/
 updates.json
 log/
