@@ -106,6 +106,7 @@ tail -f log/telegram_bot.log
 
 - `/chat` - Switch to Bedrock chat mode (default)
 - `/code` - Switch to Kiro CLI mode
+- `/status` - Check folder monitor status
 - Any other text - Processed based on current mode
 
 ## Project Structure
