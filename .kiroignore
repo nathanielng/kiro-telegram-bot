@@ -1,0 +1,4 @@
+.kiroignore
+*.env
+../*.env
+~/.env
