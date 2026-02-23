@@ -48,6 +48,8 @@ def fetch_updates(api_key):
 
     if not data.get("ok") or not data.get("result"):
         print("Error: No updates found or invalid response from Telegram")
+        print(f"Response: {json.dumps(data,indent=2,default=str)}")
+        print("Please ensure your bot is working and has received at least one message. Did you access https://t.me/{your_bot_name} and run /start?")
         sys.exit(1)
 
     return data
