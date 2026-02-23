@@ -5,9 +5,13 @@ Telegram bot with dual modes: chat with AWS Bedrock or execute commands via Kiro
 ## Features
 
 - **/chat mode**: Send prompts to AWS Bedrock (Claude Sonnet 4.5)
-- **/code mode**: Execute commands through Kiro CLI
+- **/code mode**: Execute commands through Kiro CLI with interactive prompt support
+- **Interactive Kiro CLI**: PTY-based execution that handles mid-execution prompts via Telegram
+- **Folder monitoring**: Automatic S3 upload and CloudFront URL sharing for generated files
+- **PII redaction**: Optional privacy protection for uploaded files
 - Long-polling for reliable message delivery
 - Background execution with logging
+- Auto-start on system boot (optional)
 
 ## Prerequisites
 
@@ -52,10 +56,29 @@ This will output your chat ID. Save it for the next step.
 
 ### 3. Set Environment Variables
 
+#### Required Variables
+
 ```bash
 export TELEGRAM_API_KEY='your_api_key_here'
 export TELEGRAM_CHAT_ID='your_chat_id_here'
-export AWS_REGION='us-west-2'  # Optional, defaults to us-west-2
+```
+
+#### Optional Variables
+
+```bash
+# AWS Configuration
+export AWS_REGION='us-west-2'  # Defaults to us-west-2
+
+# Kiro Output Directory (for folder monitoring)
+export KIRO_OUTPUT_DIR='kirobot-out'  # Defaults to kirobot-out
+
+# S3 and CloudFront (for file uploads)
+export S3_BUCKET_NAME='your-bucket-name'
+export S3_PREFIX='telegram-bot/'  # Optional prefix for S3 keys
+export CLOUDFRONT_BASE_URL='https://your-distribution.cloudfront.net'
+
+# PII Redaction
+export ENABLE_PII_REDACTION='true'  # Defaults to true
 ```
 
 Add these to your `~/.bashrc` or `~/.zshrc` to persist.
@@ -91,7 +114,11 @@ tail -f telegram_bot.log
 kiro-telegram-bot/
 ├── telegram_bot.py          # Main bot implementation
 ├── telegram_bot_init.py     # Initial setup script
+├── kiro_interactive.py      # PTY-based interactive Kiro CLI runner
+├── folder_monitor.py        # S3 upload and file monitoring
 ├── run_telegram.sh          # Background execution script
+├── run_monitor.sh           # Background folder monitor script
+├── setup_autostart.sh       # Auto-start configuration
 ├── requirements.txt         # Python dependencies
 ├── pyproject.toml           # UV project configuration
 └── README.md                # This file
