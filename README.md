@@ -6,11 +6,13 @@ Telegram bot with dual modes: chat with AWS Bedrock or execute commands via Kiro
 
 - **/chat mode**: Send prompts to AWS Bedrock (Claude Sonnet 4.5)
 - **/code mode**: Execute commands through Kiro CLI with automatic file operations
-- **Security scanning**: Automatic security checks for generated HTML/CSS/JS files
+- **Content filtering**: Optional Bedrock Guardrail integration for input validation
+- **Security scanning**: Automatic security checks for generated HTML/CSS/JS files with quarantine
+- **Sensitive file protection**: Blocks attempts to access .env files via shell commands
 - **Chat history**: Tracks last 10 conversation exchanges for context
 - **Folder monitoring**: Automatic S3 upload and CloudFront URL sharing for generated files
 - **Output truncation**: Long outputs are automatically truncated with full version saved to S3
-- **PII redaction**: Optional privacy protection for uploaded files
+- **PII redaction**: Optional privacy protection for uploaded files and steering files
 - **Auto-sync**: Files are immediately synced to S3 after each Kiro command
 - Long-polling for reliable message delivery
 - Background execution with logging
@@ -57,7 +59,18 @@ uv run telegram_bot_init.py
 
 This will output your chat ID. Save it for the next step.
 
-### 3. Set Environment Variables
+### 3. (Optional) Create Bedrock Guardrail
+
+To enable content filtering for user inputs:
+
+```bash
+export AWS_REGION='us-west-2'  # Optional, defaults to us-west-2
+uv run create_guardrail.py
+```
+
+This creates a guardrail with filters for sexual content, violence, hate speech, insults, misconduct, and prompt attacks. The guardrail ID is automatically saved to your `.env` file.
+
+### 4. Set Environment Variables
 
 #### Required Variables
 
@@ -71,6 +84,10 @@ export TELEGRAM_CHAT_ID='your_chat_id_here'
 ```bash
 # AWS Configuration
 export AWS_REGION='us-west-2'  # Defaults to us-west-2
+
+# Bedrock Guardrail (optional content filtering)
+export BEDROCK_GUARDRAIL_ID='your-guardrail-id'  # Optional
+export BEDROCK_GUARDRAIL_VERSION='DRAFT'  # Defaults to DRAFT
 
 # Kiro Output Directory (for folder monitoring)
 export KIRO_OUTPUT_DIR='kirobot-out'  # Defaults to kirobot-out
@@ -114,7 +131,27 @@ tail -f log/telegram_bot.log
 - `/code` - Switch to Kiro CLI mode
 - `/status` - Check folder monitor status
 - `/clear` - Clear chat history
+- `/model` - Select Kiro CLI model
+- `/help` - Show available commands
 - Any other text - Processed based on current mode
+
+### Security Features
+
+**Content Filtering (Guardrail):**
+- If configured, all user inputs are checked against Bedrock Guardrail
+- Blocks inappropriate content (sexual, violence, hate speech, insults, misconduct, prompt attacks)
+- Shows "🛡️ Your input was blocked by the content guardrail." message when triggered
+
+**File Security Scanning:**
+- Automatically scans generated HTML/CSS/JS files for security issues
+- Checks for: external scripts, eval(), XSS vulnerabilities, suspicious keywords
+- Quarantines unsafe files to `.quarantine/` folder (excluded from S3 sync)
+- Shows ✅ for safe files, ❌ for quarantined files with issue details
+
+**Sensitive File Protection:**
+- Blocks shell commands attempting to access .env files
+- Prevents: `!cat .env`, `!cat ~/.env`, `!cat ../.env` and similar commands
+- Returns "⛔ Access to .env files is blocked for security reasons."
 
 ### Example Usage
 
@@ -166,11 +203,13 @@ Create a weather app that fetches data from a public API
 kiro-telegram-bot/
 ├── telegram_bot.py          # Main bot implementation
 ├── telegram_bot_init.py     # Initial setup script
+├── create_guardrail.py      # Bedrock Guardrail setup script
 ├── kiro_interactive.py      # PTY-based interactive Kiro CLI runner
 ├── folder_monitor.py        # S3 upload and file monitoring
 ├── run_telegram.sh          # Background execution script
 ├── run_monitor.sh           # Background folder monitor script
 ├── setup_autostart.sh       # Auto-start configuration
+├── .kiroignore              # Files to exclude from Kiro context
 ├── requirements.txt         # Python dependencies
 ├── pyproject.toml           # UV project configuration
 └── README.md                # This file
