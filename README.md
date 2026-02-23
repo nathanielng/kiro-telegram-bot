@@ -99,7 +99,7 @@ uv run telegram_bot.py
 
 View logs:
 ```bash
-tail -f telegram_bot.log
+tail -f log/telegram_bot.log
 ```
 
 ### Bot Commands
