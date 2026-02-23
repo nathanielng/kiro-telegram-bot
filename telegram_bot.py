@@ -178,7 +178,7 @@ def build_url(file_path, kiro_output_dir, cloudfront_base_url, s3_prefix):
 # ---------------------------------------------------------------------------
 
 def strip_ansi(text):
-    return re.sub(r'\x1b\[[0-9;]*m', '', text)
+    return re.sub(r'\x1b\[[0-9;?]*[a-zA-Z]', '', text)
 
 
 def send_message(api_key, chat_id, text):
@@ -257,13 +257,37 @@ def main():
     bedrock = boto3.client('bedrock-runtime', region_name=region)
     offset = 0
     mode = "chat"
+    awaiting_model = False
 
     # Kiro CLI slash commands that should be passed through
     kiro_commands = {
-        "/context show", "/context clear", "/model", "/agent list",
+        "/context show", "/context clear", "/agent list",
         "/save", "/load", "/tools", "/prompts list", "/prompts get",
         "/prompts create", "/hooks", "/usage", "/mcp", "/tangents"
     }
+
+    # Available models
+    models = [
+        ("auto", "1.00x credits", "Models chosen by task for optimal usage and consistent q.."),
+        ("claude-opus-4.6", "2.20x credits", "Experimental preview of Claude Opus 4.6"),
+        ("claude-opus-4.6-1m", "2.20x credits", "[Internal] Experimental preview of Claude Opus 4.6 1M co.."),
+        ("claude-sonnet-4.6", "1.30x credits", "Experimental preview of the latest Claude Sonnet model"),
+        ("claude-sonnet-4.6-1m", "1.30x credits", "[Internal] Experimental preview of Claude Sonnet 4.6 1M .."),
+        ("claude-opus-4.5", "2.20x credits", "The Claude Opus 4.5 model"),
+        ("claude-sonnet-4.5", "1.30x credits", "The Claude Sonnet 4.5 model"),
+        ("claude-sonnet-4.5-1m", "1.30x credits", "[Internal] Experimental preview of Claude Sonnet 4.5 1M .."),
+        ("claude-sonnet-4", "1.30x credits", "Hybrid reasoning and coding for regular use"),
+        ("claude-haiku-4.5", "0.40x credits", "The latest Claude Haiku model"),
+        ("deepseek-3.2", "0.25x credits", "Experimental preview of DeepSeek V3.2"),
+        ("kimi-k2.5", "0.25x credits", "[Internal] Experimental preview of Kimi K2.5"),
+        ("minimax-m2.1", "0.15x credits", "Experimental preview of MiniMax M2.1"),
+        ("glm-4.7", "0.15x credits", "[Internal] Experimental preview of GLM 4.7"),
+        ("glm-4.7-flash", "0.05x credits", "[Internal] Experimental preview of GLM 4.7 Flash"),
+        ("qwen3-coder-next", "0.05x credits", "Experimental preview of Qwen3 Coder Next"),
+        ("agi-nova-beta-1m", "0.01x credits", "[Internal] AGI Nova SWE Beta"),
+        ("qwen3-coder-480b", "0.01x credits", "[Internal] Experimental preview of the Qwen3 model"),
+    ]
+    model_names = {m[0] for m in models}
 
     print(f"Bot started. Monitoring chat {chat_id}")
 
@@ -284,6 +308,21 @@ def main():
                         user_text = update["message"]["text"]
                         print(f"Received: {user_text}")
 
+                        # Handle model selection if awaiting
+                        if awaiting_model:
+                            if user_text in model_names:
+                                reply, new_files = invoke_kiro(
+                                    f"/model {user_text}",
+                                    kiro_output_dir,
+                                    cloudfront_base_url,
+                                    s3_prefix,
+                                )
+                                send_message(api_key, chat_id, reply)
+                                awaiting_model = False
+                            else:
+                                send_message(api_key, chat_id, f"Invalid model: {user_text}. Please select from the list.")
+                            continue
+
                         # Check if it's a Kiro CLI command (exact match or starts with pattern)
                         is_kiro_cmd = any(user_text == cmd or user_text.startswith(cmd + " ") 
                                          for cmd in kiro_commands)
@@ -297,6 +336,13 @@ def main():
                             mode = "code"
                             reply = "Switched to code mode (Kiro CLI)"
                             send_message(api_key, chat_id, reply)
+
+                        elif user_text == "/model":
+                            lines = ["Select model (type to search):"]
+                            for name, credits, desc in models:
+                                lines.append(f"  {name:<23} {credits:<18} {desc}")
+                            send_message(api_key, chat_id, "\n".join(lines))
+                            awaiting_model = True
 
                         elif user_text == "/help":
                             reply = (
