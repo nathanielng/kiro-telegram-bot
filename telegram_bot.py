@@ -86,6 +86,26 @@ def format_history_for_kiro(history):
     return "\n".join(lines) + "\n"
 
 
+def sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region):
+    """Force sync output directory to S3 bucket."""
+    if not kiro_output_dir or not s3_bucket:
+        return
+    
+    try:
+        # Build S3 destination path
+        s3_path = f"s3://{s3_bucket}/{s3_prefix}/" if s3_prefix else f"s3://{s3_bucket}/"
+        
+        # Use AWS CLI sync command for efficient upload
+        subprocess.run(
+            ["aws", "s3", "sync", kiro_output_dir, s3_path, "--region", region],
+            capture_output=True,
+            timeout=30
+        )
+        logging.info(f"Synced {kiro_output_dir} to {s3_path}")
+    except Exception as e:
+        logging.error(f"Failed to sync to S3: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -104,6 +124,7 @@ def get_config():
     kiro_output_dir = os.environ.get('KIRO_OUTPUT_DIR', '').strip()
     cloudfront_base_url = os.environ.get('CLOUDFRONT_BASE_URL', '').rstrip('/')
     s3_prefix = os.environ.get('S3_PREFIX', '').strip('/')
+    s3_bucket = os.environ.get('S3_BUCKET_NAME', '').strip()
     chat_history_size = int(os.environ.get('CHAT_HISTORY_SIZE', '10'))
 
     logging.info("Environment variables loaded:")
@@ -113,13 +134,14 @@ def get_config():
     logging.info(f"  KIRO_OUTPUT_DIR: {kiro_output_dir}")
     logging.info(f"  CLOUDFRONT_BASE_URL: {cloudfront_base_url}")
     logging.info(f"  S3_PREFIX: {s3_prefix}")
+    logging.info(f"  S3_BUCKET_NAME: {s3_bucket}")
     logging.info(f"  CHAT_HISTORY_SIZE: {chat_history_size}")
 
     if not api_key or not chat_id:
         print("Error: TELEGRAM_API_KEY and TELEGRAM_CHAT_ID must be set")
         sys.exit(1)
 
-    return api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, chat_history_size
+    return api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, s3_bucket, chat_history_size
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +450,7 @@ def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history
 # ---------------------------------------------------------------------------
 
 def main():
-    api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, chat_history_size = get_config()
+    api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, s3_bucket, chat_history_size = get_config()
 
     # Ensure output directory exists and update Kiro's steering file
     ensure_output_dir(kiro_output_dir)
@@ -503,6 +525,10 @@ def main():
                                 send_message(api_key, chat_id, reply)
                                 if full_url:
                                     send_message(api_key, chat_id, f"📄 Full output: {full_url}")
+                                
+                                # Force sync to S3
+                                sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
+                                
                                 awaiting_model = False
                             else:
                                 send_message(api_key, chat_id, f"Invalid model: {user_text}. Please select from the list.")
@@ -572,6 +598,9 @@ def main():
                                 for filename, url in new_files:
                                     lines.append(f"  {filename}: {url}")
                                 send_message(api_key, chat_id, "\n".join(lines))
+                            
+                            # Force sync to S3
+                            sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
 
                         else:
                             if mode == "chat":
@@ -603,6 +632,9 @@ def main():
                                     for filename, url in new_files:
                                         lines.append(f"  {filename}: {url}")
                                     send_message(api_key, chat_id, "\n".join(lines))
+                                
+                                # Force sync to S3
+                                sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
                                 
                                 # Add to chat history
                                 chat_history = add_to_history(chat_history, "user", user_text, chat_history_size)
