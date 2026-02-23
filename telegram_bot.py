@@ -9,7 +9,7 @@ Supports two modes:
 
 Requires: TELEGRAM_API_KEY, TELEGRAM_CHAT_ID
 Optional:  AWS_REGION, KIRO_OUTPUT_DIR, S3_BUCKET_NAME, S3_PREFIX,
-           CLOUDFRONT_BASE_URL
+           CLOUDFRONT_BASE_URL, CHAT_HISTORY_SIZE
 """
 
 import json
@@ -39,6 +39,51 @@ except ImportError:
 
 # Path to the Kiro steering file that tells Kiro where to save outputs
 KIRO_STEERING_FILE = Path(__file__).parent / ".kiro" / "steering" / "output-config.md"
+CHAT_HISTORY_FILE = Path(__file__).parent / "log" / "chat_history.json"
+
+
+# ---------------------------------------------------------------------------
+# Chat history management
+# ---------------------------------------------------------------------------
+
+def load_chat_history():
+    """Load chat history from JSON file."""
+    if CHAT_HISTORY_FILE.exists():
+        try:
+            return json.loads(CHAT_HISTORY_FILE.read_text())
+        except Exception as e:
+            logging.warning(f"Failed to load chat history: {e}")
+    return []
+
+
+def save_chat_history(history):
+    """Save chat history to JSON file."""
+    try:
+        CHAT_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CHAT_HISTORY_FILE.write_text(json.dumps(history, indent=2))
+    except Exception as e:
+        logging.error(f"Failed to save chat history: {e}")
+
+
+def add_to_history(history, role, content, max_size):
+    """Add a message to history and trim to max_size."""
+    history.append({"role": role, "content": content})
+    if len(history) > max_size * 2:  # *2 because each exchange is 2 messages
+        history = history[-(max_size * 2):]
+    return history
+
+
+def format_history_for_kiro(history):
+    """Format chat history as a prefix for Kiro CLI prompts."""
+    if not history:
+        return ""
+    
+    lines = ["Here is the recent conversation history:"]
+    for msg in history:
+        role = "Human" if msg["role"] == "user" else "Assistant"
+        lines.append(f"{role}: {msg['content']}")
+    lines.append("\nYour instruction:")
+    return "\n".join(lines) + "\n"
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +104,7 @@ def get_config():
     kiro_output_dir = os.environ.get('KIRO_OUTPUT_DIR', '').strip()
     cloudfront_base_url = os.environ.get('CLOUDFRONT_BASE_URL', '').rstrip('/')
     s3_prefix = os.environ.get('S3_PREFIX', '').strip('/')
+    chat_history_size = int(os.environ.get('CHAT_HISTORY_SIZE', '10'))
 
     logging.info("Environment variables loaded:")
     logging.info(f"  TELEGRAM_API_KEY: {redact_key(api_key)}")
@@ -67,12 +113,13 @@ def get_config():
     logging.info(f"  KIRO_OUTPUT_DIR: {kiro_output_dir}")
     logging.info(f"  CLOUDFRONT_BASE_URL: {cloudfront_base_url}")
     logging.info(f"  S3_PREFIX: {s3_prefix}")
+    logging.info(f"  CHAT_HISTORY_SIZE: {chat_history_size}")
 
     if not api_key or not chat_id:
         print("Error: TELEGRAM_API_KEY and TELEGRAM_CHAT_ID must be set")
         sys.exit(1)
 
-    return api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix
+    return api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, chat_history_size
 
 
 # ---------------------------------------------------------------------------
@@ -260,16 +307,19 @@ def invoke_bedrock(bedrock, prompt):
         return f"Error: {e}"
 
 
-def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix):
+def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history_prefix=""):
     """Run kiro-cli and detect any files it creates in kiro_output_dir.
 
     Returns (output_text, list_of_(filename, url) tuples).
     """
     before = snapshot_dir(kiro_output_dir)
+    
+    # Prepend history if provided
+    full_prompt = history_prefix + prompt if history_prefix else prompt
 
     try:
         result = subprocess.run(
-            ["kiro-cli", "chat", "--no-interactive", prompt],
+            ["kiro-cli", "chat", "--no-interactive", full_prompt],
             capture_output=True,
             text=True,
             timeout=300
@@ -296,7 +346,7 @@ def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix):
 # ---------------------------------------------------------------------------
 
 def main():
-    api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix = get_config()
+    api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, chat_history_size = get_config()
 
     # Ensure output directory exists and update Kiro's steering file
     ensure_output_dir(kiro_output_dir)
@@ -306,11 +356,14 @@ def main():
     offset = 0
     mode = "chat"
     awaiting_model = False
+    
+    # Load chat history
+    chat_history = load_chat_history()
 
     # Kiro CLI slash commands that should be passed through
     kiro_commands = {
         "/context show", "/context clear", "/agent list",
-        "/save", "/load", "/tools", "/prompts list", "/prompts get",
+        "/prompts list", "/prompts get",
         "/prompts create", "/hooks", "/usage", "/mcp", "/tangents"
     }
 
@@ -406,14 +459,13 @@ def main():
                                 "Kiro CLI commands (work in code mode):\n"
                                 "/context show, /context clear\n"
                                 "/model, /agent list\n"
-                                "/save, /load\n"
-                                "/tools, /prompts list, /prompts get, /prompts create\n"
+                                "/prompts list, /prompts get, /prompts create\n"
                                 "/hooks, /usage, /mcp, /tangents"
                             )
                             send_message(api_key, chat_id, reply)
 
                         elif is_kiro_cmd:
-                            # Pass Kiro commands directly to Kiro CLI
+                            # Pass Kiro commands directly to Kiro CLI (no history for commands)
                             reply, new_files = invoke_kiro(
                                 user_text,
                                 kiro_output_dir,
@@ -432,12 +484,21 @@ def main():
                             if mode == "chat":
                                 reply = invoke_bedrock(bedrock, user_text)
                                 send_message(api_key, chat_id, reply)
+                                
+                                # Add to chat history
+                                chat_history = add_to_history(chat_history, "user", user_text, chat_history_size)
+                                chat_history = add_to_history(chat_history, "assistant", reply, chat_history_size)
+                                save_chat_history(chat_history)
                             else:
+                                # Format history for Kiro
+                                history_prefix = format_history_for_kiro(chat_history)
+                                
                                 reply, new_files = invoke_kiro(
                                     user_text,
                                     kiro_output_dir,
                                     cloudfront_base_url,
                                     s3_prefix,
+                                    history_prefix,
                                 )
                                 send_message(api_key, chat_id, reply)
 
@@ -446,6 +507,11 @@ def main():
                                     for filename, url in new_files:
                                         lines.append(f"  {filename}: {url}")
                                     send_message(api_key, chat_id, "\n".join(lines))
+                                
+                                # Add to chat history
+                                chat_history = add_to_history(chat_history, "user", user_text, chat_history_size)
+                                chat_history = add_to_history(chat_history, "assistant", reply, chat_history_size)
+                                save_chat_history(chat_history)
 
                         print(f"Sent reply ({mode} mode)")
 
