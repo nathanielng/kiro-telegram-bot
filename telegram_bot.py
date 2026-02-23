@@ -86,6 +86,76 @@ def format_history_for_kiro(history):
     return "\n".join(lines) + "\n"
 
 
+def check_file_security(file_path):
+    """Check HTML/CSS/JS files for common security issues.
+    
+    Returns (passed: bool, issues: list of strings).
+    """
+    path = Path(file_path)
+    ext = path.suffix.lower()
+    
+    # Only check web files
+    if ext not in ['.html', '.css', '.js']:
+        return True, []
+    
+    try:
+        content = path.read_text(encoding='utf-8', errors='ignore').lower()
+    except Exception as e:
+        logging.error(f"Failed to read {file_path} for security check: {e}")
+        return False, [f"Failed to read file: {e}"]
+    
+    issues = []
+    
+    # Check for dangerous patterns
+    dangerous_patterns = [
+        (r'<script[^>]*src=["\']https?://(?!cdn\.)', 'External script from untrusted domain'),
+        (r'eval\s*\(', 'Use of eval() function'),
+        (r'document\.write\s*\(', 'Use of document.write()'),
+        (r'innerhtml\s*=', 'Direct innerHTML assignment (XSS risk)'),
+        (r'on\w+\s*=\s*["\']', 'Inline event handlers'),
+        (r'javascript:', 'javascript: protocol in URLs'),
+        (r'<iframe', 'iframe element detected'),
+        (r'fetch\s*\(["\']https?://', 'External API calls'),
+        (r'xmlhttprequest', 'XMLHttpRequest usage'),
+    ]
+    
+    for pattern, description in dangerous_patterns:
+        if re.search(pattern, content):
+            issues.append(description)
+    
+    # Check for suspicious keywords
+    suspicious_keywords = ['crypto', 'bitcoin', 'wallet', 'password', 'credential']
+    for keyword in suspicious_keywords:
+        if keyword in content and 'placeholder' not in content[max(0, content.find(keyword)-20):content.find(keyword)+20]:
+            issues.append(f"Suspicious keyword: {keyword}")
+    
+    passed = len(issues) == 0
+    return passed, issues
+
+
+def quarantine_file(file_path, kiro_output_dir):
+    """Move file to quarantine folder."""
+    try:
+        quarantine_dir = Path(kiro_output_dir) / ".quarantine"
+        quarantine_dir.mkdir(exist_ok=True)
+        
+        src = Path(file_path)
+        dst = quarantine_dir / src.name
+        
+        # Handle duplicate names
+        counter = 1
+        while dst.exists():
+            dst = quarantine_dir / f"{src.stem}_{counter}{src.suffix}"
+            counter += 1
+        
+        src.rename(dst)
+        logging.info(f"Quarantined {src.name} to {dst}")
+        return str(dst)
+    except Exception as e:
+        logging.error(f"Failed to quarantine {file_path}: {e}")
+        return None
+
+
 def sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region):
     """Force sync output directory to S3 bucket."""
     if not kiro_output_dir or not s3_bucket:
@@ -95,9 +165,10 @@ def sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region):
         # Build S3 destination path
         s3_path = f"s3://{s3_bucket}/{s3_prefix}/" if s3_prefix else f"s3://{s3_bucket}/"
         
-        # Use AWS CLI sync command for efficient upload
+        # Use AWS CLI sync command for efficient upload, excluding quarantine folder
         subprocess.run(
-            ["aws", "s3", "sync", kiro_output_dir, s3_path, "--region", region],
+            ["aws", "s3", "sync", kiro_output_dir, s3_path, 
+             "--exclude", ".quarantine/*", "--region", region],
             capture_output=True,
             timeout=30
         )
@@ -433,19 +504,40 @@ def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history
         # Log cleaned output
         logging.info(f"Kiro CLI output:\n{output}")
     except Exception as e:
-        return f"Error: {e}", [], None
+        return f"Error: {e}", [], None, []
 
     after = snapshot_dir(kiro_output_dir)
     changed = new_files_since(before, after)
 
-    urls = []
-    if cloudfront_base_url and changed:
-        for file_path in sorted(changed):
-            url = build_url(file_path, kiro_output_dir, cloudfront_base_url, s3_prefix)
-            if url:
-                urls.append((Path(file_path).name, url))
+    # Security check for web files
+    security_results = []
+    quarantined = []
+    
+    for file_path in sorted(changed):
+        passed, issues = check_file_security(file_path)
+        file_name = Path(file_path).name
+        
+        if not passed:
+            # Quarantine the file
+            quarantine_path = quarantine_file(file_path, kiro_output_dir)
+            if quarantine_path:
+                quarantined.append(file_name)
+                security_results.append((file_name, False, issues))
+                logging.warning(f"Security check failed for {file_name}: {', '.join(issues)}")
+        else:
+            security_results.append((file_name, True, []))
 
-    return output, urls, full_output_url
+    # Build URLs only for non-quarantined files
+    urls = []
+    if cloudfront_base_url:
+        for file_path in sorted(changed):
+            file_name = Path(file_path).name
+            if file_name not in quarantined:
+                url = build_url(file_path, kiro_output_dir, cloudfront_base_url, s3_prefix)
+                if url:
+                    urls.append((file_name, url))
+
+    return output, urls, full_output_url, security_results
 
 
 # ---------------------------------------------------------------------------
@@ -519,7 +611,7 @@ def main():
                         # Handle model selection if awaiting
                         if awaiting_model:
                             if user_text in model_names:
-                                reply, new_files, full_url = invoke_kiro(
+                                reply, new_files, full_url, security_results = invoke_kiro(
                                     f"/model {user_text}",
                                     kiro_output_dir,
                                     cloudfront_base_url,
@@ -528,6 +620,14 @@ def main():
                                 send_message(api_key, chat_id, reply)
                                 if full_url:
                                     send_message(api_key, chat_id, f"📄 Full output: {full_url}")
+                                
+                                # Show security results
+                                if security_results:
+                                    for filename, passed, issues in security_results:
+                                        if passed:
+                                            send_message(api_key, chat_id, f"✅ Security check passed: {filename}")
+                                        else:
+                                            send_message(api_key, chat_id, f"❌ Security check failed: {filename}\n⚠️ Issues: {', '.join(issues)}\n🔒 File quarantined")
                                 
                                 # Force sync to S3
                                 sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
@@ -585,7 +685,7 @@ def main():
 
                         elif is_kiro_cmd:
                             # Pass Kiro commands directly to Kiro CLI (no history for commands)
-                            reply, new_files, full_url = invoke_kiro(
+                            reply, new_files, full_url, security_results = invoke_kiro(
                                 user_text,
                                 kiro_output_dir,
                                 cloudfront_base_url,
@@ -596,6 +696,14 @@ def main():
                             if full_url:
                                 send_message(api_key, chat_id, f"📄 Full output: {full_url}")
 
+                            # Show security results
+                            if security_results:
+                                for filename, passed, issues in security_results:
+                                    if passed:
+                                        send_message(api_key, chat_id, f"✅ Security check passed: {filename}")
+                                    else:
+                                        send_message(api_key, chat_id, f"❌ Security check failed: {filename}\n⚠️ Issues: {', '.join(issues)}\n🔒 File quarantined")
+
                             if new_files:
                                 lines = ["Files created by Kiro:"]
                                 for filename, url in new_files:
@@ -603,6 +711,7 @@ def main():
                                 send_message(api_key, chat_id, "\n".join(lines))
                             
                             # Force sync to S3
+                            sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
                             sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
 
                         else:
@@ -618,7 +727,7 @@ def main():
                                 # Format history for Kiro
                                 history_prefix = format_history_for_kiro(chat_history)
                                 
-                                reply, new_files, full_url = invoke_kiro(
+                                reply, new_files, full_url, security_results = invoke_kiro(
                                     user_text,
                                     kiro_output_dir,
                                     cloudfront_base_url,
@@ -629,6 +738,14 @@ def main():
                                 
                                 if full_url:
                                     send_message(api_key, chat_id, f"📄 Full output: {full_url}")
+
+                                # Show security results
+                                if security_results:
+                                    for filename, passed, issues in security_results:
+                                        if passed:
+                                            send_message(api_key, chat_id, f"✅ Security check passed: {filename}")
+                                        else:
+                                            send_message(api_key, chat_id, f"❌ Security check failed: {filename}\n⚠️ Issues: {', '.join(issues)}\n🔒 File quarantined")
 
                                 if new_files:
                                     lines = ["Files created by Kiro:"]
