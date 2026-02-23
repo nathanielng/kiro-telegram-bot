@@ -28,9 +28,14 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    env_file = Path(__file__).parent / '.env'
+    if env_file.exists():
+        load_dotenv()
+        logging.info(f"Loaded configuration from {env_file}")
+    else:
+        logging.info("No .env file found, using environment variables for configuration")
 except ImportError:
-    pass  # python-dotenv is optional; env vars can be set externally
+    logging.warning("python-dotenv not installed, using environment variables for configuration")
 
 # Path to the Kiro steering file that tells Kiro where to save outputs
 KIRO_STEERING_FILE = Path(__file__).parent / ".kiro" / "steering" / "output-config.md"
