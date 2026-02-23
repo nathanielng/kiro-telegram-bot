@@ -421,7 +421,7 @@ def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history
 
     try:
         result = subprocess.run(
-            ["kiro-cli", "chat", "--no-interactive", full_prompt],
+            ["kiro-cli", "chat", "--no-interactive", "--trust-tools=fs_read,fs_write", full_prompt],
             capture_output=True,
             text=True,
             timeout=300
@@ -429,6 +429,9 @@ def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history
         output = result.stdout if result.stdout else result.stderr
         # Clean the output for Telegram
         output, full_output_url = clean_kiro_output(output, kiro_output_dir, cloudfront_base_url, s3_prefix)
+        
+        # Log cleaned output
+        logging.info(f"Kiro CLI output:\n{output}")
     except Exception as e:
         return f"Error: {e}", [], None
 
