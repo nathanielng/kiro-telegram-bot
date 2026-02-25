@@ -24,7 +24,7 @@ Resources:
         DefaultRootObject: index.html
         Origins:
           - Id: S3Origin
-            DomainName: !Sub "${S3BucketName}.s3.amazonaws.com"
+            DomainName: !Sub "${S3BucketName}.s3.${AWS::Region}.amazonaws.com"
             S3OriginConfig:
               OriginAccessIdentity: ""
             OriginAccessControlId: !GetAtt OriginAccessControl.Id
