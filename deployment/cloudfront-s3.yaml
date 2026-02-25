@@ -7,24 +7,6 @@ Parameters:
     Description: Name of the S3 bucket to use as the CloudFront origin
 
 Resources:
-  CachePolicy:
-    Type: AWS::CloudFront::CachePolicy
-    Properties:
-      CachePolicyConfig:
-        Name: !Sub "${AWS::StackName}-no-cache-policy"
-        DefaultTTL: 0
-        MinTTL: 0
-        MaxTTL: 0
-        ParametersInCacheKeyAndForwardedToOrigin:
-          EnableAcceptEncodingGzip: false
-          EnableAcceptEncodingBrotli: false
-          CookiesConfig:
-            CookieBehavior: none
-          HeadersConfig:
-            HeaderBehavior: none
-          QueryStringsConfig:
-            QueryStringBehavior: none
-
   OriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
@@ -55,7 +37,7 @@ Resources:
           CachedMethods:
             - GET
             - HEAD
-          CachePolicyId: !Ref CachePolicy
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
           Compress: true
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
