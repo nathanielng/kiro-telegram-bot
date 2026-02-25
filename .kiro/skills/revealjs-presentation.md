@@ -109,6 +109,7 @@ Before finalizing, verify:
 When user requests a presentation:
 1. Ask for the topic if not specified
 2. Generate complete HTML file with all styling embedded
-3. Save to the configured output directory
-4. Provide the CloudFront URL for immediate viewing
-5. Offer to adjust sizing if elements don't fit properly
+3. **Save the file to the configured output directory** (do NOT output the HTML code in the response)
+4. Inform the user that the presentation has been saved and provide the filename
+5. The bot will automatically provide the CloudFront URL
+6. Offer to adjust sizing if elements don't fit properly
