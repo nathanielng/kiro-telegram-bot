@@ -194,7 +194,7 @@ def get_config():
     api_key = os.environ.get('TELEGRAM_API_KEY')
     chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()  # Optional now
     region = os.environ.get('AWS_REGION', 'us-west-2')
-    kiro_output_dir = os.environ.get('KIRO_OUTPUT_DIR', '').strip()
+    kiro_output_dir = os.environ.get('KIRO_OUTPUT_DIR', 'kirobot-out').strip()
     cloudfront_base_url = os.environ.get('CLOUDFRONT_BASE_URL', '').rstrip('/')
     s3_prefix = os.environ.get('S3_PREFIX', '').strip('/')
     s3_bucket = os.environ.get('S3_BUCKET_NAME', '').strip()
@@ -784,6 +784,41 @@ def main():
                             else:
                                 send_message(api_key, incoming_chat_id, "Skills directory not found (.kiro/skills/)")
 
+                        elif user_text == "!ls":
+                            if kiro_output_dir:
+                                output_path = Path(kiro_output_dir)
+                                if output_path.exists():
+                                    files = sorted(output_path.rglob("*"))
+                                    if files:
+                                        lines = [f"Contents of {kiro_output_dir}:"]
+                                        for file in files[:50]:  # Limit to 50 files
+                                            if file.is_file():
+                                                rel_path = file.relative_to(output_path)
+                                                size = file.stat().st_size
+                                                lines.append(f"  📄 {rel_path} ({size:,} bytes)")
+                                            elif file.is_dir() and file != output_path:
+                                                rel_path = file.relative_to(output_path)
+                                                lines.append(f"  📁 {rel_path}/")
+                                        if len(files) > 50:
+                                            lines.append(f"\n... and {len(files) - 50} more items")
+                                        send_message(api_key, incoming_chat_id, "\n".join(lines))
+                                    else:
+                                        send_message(api_key, incoming_chat_id, f"Directory {kiro_output_dir} is empty")
+                                else:
+                                    send_message(api_key, incoming_chat_id, f"Directory {kiro_output_dir} does not exist")
+                            else:
+                                send_message(api_key, incoming_chat_id, "KIRO_OUTPUT_DIR not configured")
+
+                        elif user_text == "/sync":
+                            if kiro_output_dir and s3_bucket:
+                                send_message(api_key, incoming_chat_id, "🔄 Syncing to S3...")
+                                sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
+                                send_message(api_key, incoming_chat_id, "✅ Sync completed")
+                            elif not kiro_output_dir:
+                                send_message(api_key, incoming_chat_id, "❌ KIRO_OUTPUT_DIR not configured")
+                            elif not s3_bucket:
+                                send_message(api_key, incoming_chat_id, "❌ S3_BUCKET_NAME not configured")
+
                         elif user_text == "/help":
                             history_status = "enabled" if state["history_enabled"] else "disabled"
                             reply = (
@@ -794,7 +829,10 @@ def main():
                                 f"/history on|off - Toggle history recording (currently {history_status})\n"
                                 "/model - Select Kiro CLI model\n"
                                 "/skills - List available Kiro skills\n"
+                                "/sync - Force sync output directory to S3\n"
                                 "/help - Show this help message\n\n"
+                                "Special commands:\n"
+                                "!ls - List contents of output directory\n\n"
                                 "Kiro CLI commands (work in code mode):\n"
                                 "/context show, /context clear\n"
                                 "/model, /agent list\n"
