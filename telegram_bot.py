@@ -379,13 +379,13 @@ def clean_kiro_output(text, kiro_output_dir="", cloudfront_base_url="", s3_prefi
         cleaned_lines.append(line)
     
     full_output_url = None
-    full_text = '\n'.join(cleaned_lines)
     
-    # Truncate middle if output is more than 2 pages (>8000 chars)
-    if len(full_text) > 8000:
+    # Truncate middle if output is more than 40 lines
+    if len(cleaned_lines) > 40:
         # Save full output to file
         if kiro_output_dir and cloudfront_base_url:
             try:
+                full_text = '\n'.join(cleaned_lines)
                 output_file = Path(kiro_output_dir) / "kiro-full-output.txt"
                 output_file.write_text(full_text, encoding='utf-8')
                 
@@ -397,13 +397,13 @@ def clean_kiro_output(text, kiro_output_dir="", cloudfront_base_url="", s3_prefi
             except Exception as e:
                 logging.error(f"Failed to save full output: {e}")
         
-        # Keep first 3000 and last 3000 chars, remove middle
-        head = full_text[:3000]
-        tail = full_text[-3000:]
-        omitted_chars = len(full_text) - 6000
-        return f"{head}\n\n... ({omitted_chars} characters omitted) ...\n\n{tail}".strip(), full_output_url
+        # Keep first 20 and last 20 lines, remove middle
+        head = '\n'.join(cleaned_lines[:20])
+        tail = '\n'.join(cleaned_lines[-20:])
+        omitted_lines = len(cleaned_lines) - 40
+        return f"{head}\n\n... ({omitted_lines} lines omitted) ...\n\n{tail}".strip(), full_output_url
     
-    return full_text.strip(), full_output_url
+    return '\n'.join(cleaned_lines).strip(), full_output_url
 
 
 def paginate_message(text, max_length=4000):
@@ -553,7 +553,7 @@ def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history
 
     try:
         result = subprocess.run(
-            ["kiro-cli", "chat", "--no-interactive", "--trust-tools=fs_read,fs_write", full_prompt],
+            ["kiro-cli", "chat", "--no-interactive", "--trust-tools=fs_read,fs_write,web_search", full_prompt],
             capture_output=True,
             text=True,
             timeout=300
@@ -619,29 +619,21 @@ def main():
     kiro_commands = {
         "/context show", "/context clear", "/agent list",
         "/prompts list", "/prompts get",
-        "/prompts create", "/hooks", "/usage", "/mcp", "/tangents"
+        "/prompts create", "/hooks", "/usage", "/mcp"
     }
 
     # Available models
     models = [
         ("auto", "1.00x credits", "Models chosen by task for optimal usage and consistent q.."),
         ("claude-opus-4.6", "2.20x credits", "Experimental preview of Claude Opus 4.6"),
-        ("claude-opus-4.6-1m", "2.20x credits", "[Internal] Experimental preview of Claude Opus 4.6 1M co.."),
         ("claude-sonnet-4.6", "1.30x credits", "Experimental preview of the latest Claude Sonnet model"),
-        ("claude-sonnet-4.6-1m", "1.30x credits", "[Internal] Experimental preview of Claude Sonnet 4.6 1M .."),
         ("claude-opus-4.5", "2.20x credits", "The Claude Opus 4.5 model"),
         ("claude-sonnet-4.5", "1.30x credits", "The Claude Sonnet 4.5 model"),
-        ("claude-sonnet-4.5-1m", "1.30x credits", "[Internal] Experimental preview of Claude Sonnet 4.5 1M .."),
         ("claude-sonnet-4", "1.30x credits", "Hybrid reasoning and coding for regular use"),
         ("claude-haiku-4.5", "0.40x credits", "The latest Claude Haiku model"),
         ("deepseek-3.2", "0.25x credits", "Experimental preview of DeepSeek V3.2"),
-        ("kimi-k2.5", "0.25x credits", "[Internal] Experimental preview of Kimi K2.5"),
         ("minimax-m2.1", "0.15x credits", "Experimental preview of MiniMax M2.1"),
-        ("glm-4.7", "0.15x credits", "[Internal] Experimental preview of GLM 4.7"),
-        ("glm-4.7-flash", "0.05x credits", "[Internal] Experimental preview of GLM 4.7 Flash"),
         ("qwen3-coder-next", "0.05x credits", "Experimental preview of Qwen3 Coder Next"),
-        ("agi-nova-beta-1m", "0.01x credits", "[Internal] AGI Nova SWE Beta"),
-        ("qwen3-coder-480b", "0.01x credits", "[Internal] Experimental preview of the Qwen3 model"),
     ]
     model_names = {m[0] for m in models}
 
@@ -763,22 +755,36 @@ def main():
                             send_message(api_key, incoming_chat_id, "\n".join(lines))
                             state["awaiting_model"] = True
 
+                        elif user_text == "/skills":
+                            skills_dir = Path(__file__).parent / ".kiro" / "skills"
+                            if skills_dir.exists():
+                                skill_files = sorted(skills_dir.glob("*.md"))
+                                if skill_files:
+                                    lines = ["Available Kiro skills:"]
+                                    for skill_file in skill_files:
+                                        lines.append(f"  • {skill_file.stem}")
+                                    send_message(api_key, incoming_chat_id, "\n".join(lines))
+                                else:
+                                    send_message(api_key, incoming_chat_id, "No skills found in .kiro/skills/")
+                            else:
+                                send_message(api_key, incoming_chat_id, "Skills directory not found (.kiro/skills/)")
+
                         elif user_text == "/help":
                             history_status = "enabled" if state["history_enabled"] else "disabled"
                             reply = (
                                 "Available commands:\n"
                                 "/chat - Switch to Bedrock chat mode\n"
                                 "/code - Switch to Kiro CLI mode\n"
-                                "/status - Check folder monitor status\n"
                                 "/clear - Clear chat history\n"
                                 f"/history on|off - Toggle history recording (currently {history_status})\n"
                                 "/model - Select Kiro CLI model\n"
+                                "/skills - List available Kiro skills\n"
                                 "/help - Show this help message\n\n"
                                 "Kiro CLI commands (work in code mode):\n"
                                 "/context show, /context clear\n"
                                 "/model, /agent list\n"
                                 "/prompts list, /prompts get, /prompts create\n"
-                                "/hooks, /usage, /mcp, /tangents"
+                                "/hooks, /usage, /mcp"
                             )
                             send_message(api_key, incoming_chat_id, reply)
 
