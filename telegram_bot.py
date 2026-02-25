@@ -680,7 +680,7 @@ def main():
                         # Initialize user state if new
                         if incoming_chat_id not in user_states:
                             user_states[incoming_chat_id] = {
-                                "mode": "chat",
+                                "mode": "code",
                                 "awaiting_model": False,
                                 "history": load_chat_history(incoming_chat_id),
                                 "history_enabled": False  # Start with history off
@@ -736,7 +736,8 @@ def main():
                             send_message(api_key, incoming_chat_id, reply)
 
                         elif user_text == "/ping":
-                            send_message(api_key, incoming_chat_id, f"✅ Bot is ready\nChat ID: {incoming_chat_id}")
+                            mode_display = "Kiro CLI" if state["mode"] == "code" else "Bedrock"
+                            send_message(api_key, incoming_chat_id, f"✅ Bot is ready\nMode: {mode_display}\nChat ID: {incoming_chat_id}")
 
                         elif user_text == "/clear":
                             # Archive current history with timestamp
