@@ -1,47 +1,17 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: CloudFront distribution with S3 origin for serving static site content
+Description: CloudFront distribution with S3 origin for serving static site content (no caching)
 
 Parameters:
   S3BucketName:
     Type: String
     Description: Name of the S3 bucket to use as the CloudFront origin
 
-  CacheTTL:
-    Type: Number
-    Default: 0
-    MinValue: 0
-    Description: Default cache TTL in seconds for CloudFront (0 = no caching)
-
-Conditions:
-  CachingEnabled: !Not [!Equals [!Ref CacheTTL, 0]]
-  CachingDisabled: !Equals [!Ref CacheTTL, 0]
-
 Resources:
-  CachePolicyWithCaching:
+  CachePolicy:
     Type: AWS::CloudFront::CachePolicy
-    Condition: CachingEnabled
     Properties:
       CachePolicyConfig:
-        Name: !Sub "${AWS::StackName}-cache-policy"
-        DefaultTTL: !Ref CacheTTL
-        MinTTL: 0
-        MaxTTL: 31536000
-        ParametersInCacheKeyAndForwardedToOrigin:
-          EnableAcceptEncodingGzip: true
-          EnableAcceptEncodingBrotli: true
-          CookiesConfig:
-            CookieBehavior: none
-          HeadersConfig:
-            HeaderBehavior: none
-          QueryStringsConfig:
-            QueryStringBehavior: none
-
-  CachePolicyWithoutCaching:
-    Type: AWS::CloudFront::CachePolicy
-    Condition: CachingDisabled
-    Properties:
-      CachePolicyConfig:
-        Name: !Sub "${AWS::StackName}-cache-policy"
+        Name: !Sub "${AWS::StackName}-no-cache-policy"
         DefaultTTL: 0
         MinTTL: 0
         MaxTTL: 0
@@ -83,10 +53,7 @@ Resources:
           CachedMethods:
             - GET
             - HEAD
-          CachePolicyId: !If
-            - CachingEnabled
-            - !Ref CachePolicyWithCaching
-            - !Ref CachePolicyWithoutCaching
+          CachePolicyId: !Ref CachePolicy
           Compress: true
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
