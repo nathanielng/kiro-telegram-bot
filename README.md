@@ -6,10 +6,11 @@ Telegram bot with dual modes: chat with AWS Bedrock or execute commands via Kiro
 
 - **/chat mode**: Send prompts to AWS Bedrock (Claude Sonnet 4.5)
 - **/code mode**: Execute commands through Kiro CLI with automatic file operations
+- **Multi-user support**: Can serve multiple users simultaneously or restrict to single user
 - **Content filtering**: Optional Bedrock Guardrail integration for input validation
 - **Security scanning**: Automatic security checks for generated HTML/CSS/JS files with quarantine
 - **Sensitive file protection**: Blocks attempts to access .env files via shell commands
-- **Chat history**: Tracks last 10 conversation exchanges for context
+- **Chat history**: Tracks last 10 conversation exchanges for context (per user)
 - **Folder monitoring**: Automatic S3 upload and CloudFront URL sharing for generated files
 - **Output truncation**: Long outputs are automatically truncated with full version saved to S3
 - **PII redaction**: Optional privacy protection for uploaded files and steering files
@@ -50,14 +51,16 @@ uv sync
 2. Send `/newbot` and follow prompts
 3. Save the API key provided (format: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
 
-### 2. Get Chat ID
+### 2. Get Chat ID (Optional)
+
+For single-user mode, you can restrict the bot to only respond to your chat:
 
 ```bash
 export TELEGRAM_API_KEY='your_api_key_here'
 uv run telegram_bot_init.py
 ```
 
-This will output your chat ID. Save it for the next step.
+This will output your chat ID. If you set `TELEGRAM_CHAT_ID`, the bot will only respond to that specific chat. If you leave it unset, the bot will respond to any user who messages it (multi-user mode).
 
 ### 3. (Optional) Create Bedrock Guardrail
 
@@ -76,12 +79,14 @@ This creates a guardrail with filters for sexual content, violence, hate speech,
 
 ```bash
 export TELEGRAM_API_KEY='your_api_key_here'
-export TELEGRAM_CHAT_ID='your_chat_id_here'
 ```
 
 #### Optional Variables
 
 ```bash
+# Single-user mode (leave unset for multi-user mode)
+export TELEGRAM_CHAT_ID='your_chat_id_here'
+
 # AWS Configuration
 export AWS_REGION='us-west-2'  # Defaults to us-west-2
 
