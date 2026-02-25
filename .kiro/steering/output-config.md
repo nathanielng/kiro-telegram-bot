@@ -22,8 +22,8 @@ Replace `$FILENAME` with the actual filename (including any subdirectories relat
 Replace `$CLOUDFRONT_DOMAIN` with the Cloudfront Domain
 
 **Example:**
-- If you save `report.html`, the URL is: `https://dyjjx4800i1fn.cloudfront.net/kiro/report.html`
-- If you save `data/analysis.csv`, the URL is: `https://dyjjx4800i1fn.cloudfront.net/kiro/data/analysis.csv`
+- If you save `report.html`, the URL is: `https://$CLOUDFRONT_DOMAIN.cloudfront.net/kiro/report.html`
+- If you save `data/analysis.csv`, the URL is: `https://$CLOUDFRONT_DOMAIN.cloudfront.net/kiro/data/analysis.csv`
 
 ## Naming Conventions
 
@@ -40,3 +40,5 @@ Replace `$CLOUDFRONT_DOMAIN` with the Cloudfront Domain
 - Do **not** save temporary or intermediate working files to the output directory.
 - After completing a task, confirm which files were saved and their filenames so
   the bot can report the correct URLs.
+
+
