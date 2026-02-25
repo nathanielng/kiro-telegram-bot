@@ -548,8 +548,17 @@ def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history
     
     before = snapshot_dir(kiro_output_dir)
     
-    # Prepend history if provided
+    # Prepend history if provided and append output directory instruction
     full_prompt = history_prefix + prompt if history_prefix else prompt
+    if kiro_output_dir:
+        instruction = f"\nAll files or code generated should be saved in the folder {kiro_output_dir}"
+        if cloudfront_base_url:
+            if s3_prefix:
+                url_pattern = f"{cloudfront_base_url}/{s3_prefix}/FILENAME"
+            else:
+                url_pattern = f"{cloudfront_base_url}/FILENAME"
+            instruction += f". After saving any file, inform the user that it can be accessed at: {url_pattern} (replace FILENAME with the actual filename)"
+        full_prompt += instruction
 
     try:
         result = subprocess.run(
