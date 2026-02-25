@@ -726,6 +726,9 @@ def main():
                             reply = check_monitor_status()
                             send_message(api_key, incoming_chat_id, reply)
 
+                        elif user_text == "/ping":
+                            send_message(api_key, incoming_chat_id, f"✅ Bot is ready\nChat ID: {incoming_chat_id}")
+
                         elif user_text == "/clear":
                             # Archive current history with timestamp
                             if state["history"]:
