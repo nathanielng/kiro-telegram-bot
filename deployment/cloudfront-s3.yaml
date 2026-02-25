@@ -28,8 +28,8 @@ Resources:
           - 31536000
           - 0
         ParametersInCacheKeyAndForwardedToOrigin:
-          EnableAcceptEncodingGzip: true
-          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: !If [CachingEnabled, true, false]
+          EnableAcceptEncodingBrotli: !If [CachingEnabled, true, false]
           CookiesConfig:
             CookieBehavior: none
           HeadersConfig:
