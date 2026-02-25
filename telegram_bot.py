@@ -380,8 +380,8 @@ def clean_kiro_output(text, kiro_output_dir="", cloudfront_base_url="", s3_prefi
     
     full_output_url = None
     
-    # Truncate middle if output is more than 40 lines
-    if len(cleaned_lines) > 40:
+    # Truncate middle if output is more than 20 lines
+    if len(cleaned_lines) > 20:
         # Save full output to file
         if kiro_output_dir and cloudfront_base_url:
             try:
@@ -397,10 +397,10 @@ def clean_kiro_output(text, kiro_output_dir="", cloudfront_base_url="", s3_prefi
             except Exception as e:
                 logging.error(f"Failed to save full output: {e}")
         
-        # Keep first 20 and last 20 lines, remove middle
-        head = '\n'.join(cleaned_lines[:20])
-        tail = '\n'.join(cleaned_lines[-20:])
-        omitted_lines = len(cleaned_lines) - 40
+        # Keep first 10 and last 10 lines, remove middle
+        head = '\n'.join(cleaned_lines[:10])
+        tail = '\n'.join(cleaned_lines[-10:])
+        omitted_lines = len(cleaned_lines) - 20
         return f"{head}\n\n... ({omitted_lines} lines omitted) ...\n\n{tail}".strip(), full_output_url
     
     return '\n'.join(cleaned_lines).strip(), full_output_url
