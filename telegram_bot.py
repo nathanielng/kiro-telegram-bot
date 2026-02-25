@@ -227,6 +227,7 @@ def get_config():
 def ensure_output_dir(kiro_output_dir):
     """Create the Kiro output directory if it does not exist."""
     if not kiro_output_dir:
+        logging.warning("KIRO_OUTPUT_DIR not configured, skipping output directory creation")
         return
     path = Path(kiro_output_dir)
     path.mkdir(parents=True, exist_ok=True)
@@ -241,6 +242,7 @@ def generate_kiro_context(kiro_output_dir, cloudfront_base_url="", s3_prefix="")
     save generated files.
     """
     if not kiro_output_dir:
+        logging.warning("KIRO_OUTPUT_DIR not configured, skipping steering file generation")
         return
 
     KIRO_STEERING_FILE.parent.mkdir(parents=True, exist_ok=True)
