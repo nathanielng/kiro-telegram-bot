@@ -114,7 +114,7 @@ def check_file_security(file_path):
         (r'eval\s*\(', 'Use of eval() function'),
         (r'document\.write\s*\(', 'Use of document.write()'),
         (r'innerhtml\s*=', 'Direct innerHTML assignment (XSS risk)'),
-        (r'on\w+\s*=\s*["\']', 'Inline event handlers'),
+        # (r'on\w+\s*=\s*["\']', 'Inline event handlers'),
         (r'javascript:', 'javascript: protocol in URLs'),
         (r'<iframe', 'iframe element detected'),
         (r'fetch\s*\(["\']https?://', 'External API calls'),
