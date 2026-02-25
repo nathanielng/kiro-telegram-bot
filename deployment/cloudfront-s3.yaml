@@ -14,6 +14,7 @@ Parameters:
 
 Conditions:
   CachingEnabled: !Not [!Equals [!Ref CacheTTL, 0]]
+  CachingDisabled: !Equals [!Ref CacheTTL, 0]
 
 Resources:
   CachePolicyWithCaching:
@@ -37,7 +38,7 @@ Resources:
 
   CachePolicyWithoutCaching:
     Type: AWS::CloudFront::CachePolicy
-    Condition: !Not [!Condition CachingEnabled]
+    Condition: CachingDisabled
     Properties:
       CachePolicyConfig:
         Name: !Sub "${AWS::StackName}-cache-policy"
