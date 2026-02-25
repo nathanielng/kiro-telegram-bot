@@ -681,7 +681,8 @@ def main():
                             user_states[incoming_chat_id] = {
                                 "mode": "chat",
                                 "awaiting_model": False,
-                                "history": load_chat_history(incoming_chat_id)
+                                "history": load_chat_history(incoming_chat_id),
+                                "history_enabled": False  # Start with history off
                             }
                         
                         state = user_states[incoming_chat_id]
@@ -747,6 +748,14 @@ def main():
                             save_chat_history(state["history"], incoming_chat_id)
                             send_message(api_key, incoming_chat_id, "✅ Chat history cleared and archived")
 
+                        elif user_text == "/history on":
+                            state["history_enabled"] = True
+                            send_message(api_key, incoming_chat_id, "✅ Chat history recording enabled")
+
+                        elif user_text == "/history off":
+                            state["history_enabled"] = False
+                            send_message(api_key, incoming_chat_id, "✅ Chat history recording disabled")
+
                         elif user_text == "/model":
                             lines = ["Select model (type to search):"]
                             for name, credits, desc in models:
@@ -755,12 +764,15 @@ def main():
                             state["awaiting_model"] = True
 
                         elif user_text == "/help":
+                            history_status = "enabled" if state["history_enabled"] else "disabled"
                             reply = (
                                 "Available commands:\n"
                                 "/chat - Switch to Bedrock chat mode\n"
                                 "/code - Switch to Kiro CLI mode\n"
                                 "/status - Check folder monitor status\n"
                                 "/clear - Clear chat history\n"
+                                f"/history on|off - Toggle history recording (currently {history_status})\n"
+                                "/model - Select Kiro CLI model\n"
                                 "/help - Show this help message\n\n"
                                 "Kiro CLI commands (work in code mode):\n"
                                 "/context show, /context clear\n"
@@ -812,10 +824,11 @@ def main():
                                 reply = invoke_bedrock(bedrock, user_text)
                                 send_message(api_key, incoming_chat_id, reply)
                                 
-                                # Add to chat history
-                                state["history"] = add_to_history(state["history"], "user", user_text, chat_history_size)
-                                state["history"] = add_to_history(state["history"], "assistant", reply, chat_history_size)
-                                save_chat_history(state["history"], incoming_chat_id)
+                                # Add to chat history if enabled
+                                if state["history_enabled"]:
+                                    state["history"] = add_to_history(state["history"], "user", user_text, chat_history_size)
+                                    state["history"] = add_to_history(state["history"], "assistant", reply, chat_history_size)
+                                    save_chat_history(state["history"], incoming_chat_id)
                             else:
                                 # Format history for Kiro
                                 history_prefix = format_history_for_kiro(state["history"])
@@ -849,10 +862,11 @@ def main():
                                 # Force sync to S3
                                 sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region)
                                 
-                                # Add to chat history
-                                state["history"] = add_to_history(state["history"], "user", user_text, chat_history_size)
-                                state["history"] = add_to_history(state["history"], "assistant", reply, chat_history_size)
-                                save_chat_history(state["history"], incoming_chat_id)
+                                # Add to chat history if enabled
+                                if state["history_enabled"]:
+                                    state["history"] = add_to_history(state["history"], "user", user_text, chat_history_size)
+                                    state["history"] = add_to_history(state["history"], "assistant", reply, chat_history_size)
+                                    save_chat_history(state["history"], incoming_chat_id)
 
                         print(f"Sent reply ({state['mode']} mode)")
 
