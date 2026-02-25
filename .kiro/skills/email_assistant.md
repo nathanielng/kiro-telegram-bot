@@ -26,7 +26,17 @@ When asked about outstanding action items:
 - Extract action items (look for "Action Items", "TODO", "[ ]", or task-like language)
 - Identify assignees and due dates
 - Filter out completed items (marked with "[x]" or "Completed")
-- Present organized by assignee or priority
+- **Present as a simple table with columns: Assignee, Task, Due Date**
+- Keep descriptions brief (max 10 words per task)
+- Do not add explanatory text, just show the table
+
+Example output format:
+```
+| Assignee | Task | Due Date |
+|----------|------|----------|
+| Alex Chen | Provide Kiro installation guide | Feb 27 |
+| Raj Kumar | Install Kiro CLI | Feb 28 |
+```
 
 Example prompt: "What are my outstanding action items?"
 
