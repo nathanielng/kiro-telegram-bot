@@ -161,6 +161,7 @@ def quarantine_file(file_path, kiro_output_dir):
 def sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region):
     """Force sync output directory to S3 bucket."""
     if not kiro_output_dir or not s3_bucket:
+        logging.warning("Sync skipped: kiro_output_dir or s3_bucket not configured")
         return
     
     try:
@@ -168,13 +169,22 @@ def sync_to_s3(kiro_output_dir, s3_bucket, s3_prefix, region):
         s3_path = f"s3://{s3_bucket}/{s3_prefix}/" if s3_prefix else f"s3://{s3_bucket}/"
         
         # Use AWS CLI sync command for efficient upload, excluding quarantine folder
-        subprocess.run(
+        result = subprocess.run(
             ["aws", "s3", "sync", kiro_output_dir, s3_path, 
              "--exclude", ".quarantine/*", "--region", region],
             capture_output=True,
+            text=True,
             timeout=30
         )
-        logging.info(f"Synced {kiro_output_dir} to {s3_path}")
+        
+        if result.returncode == 0:
+            logging.info(f"Synced {kiro_output_dir} to {s3_path}")
+            if result.stdout:
+                logging.info(f"Sync output: {result.stdout}")
+        else:
+            logging.error(f"Sync failed with return code {result.returncode}")
+            if result.stderr:
+                logging.error(f"Sync error: {result.stderr}")
     except Exception as e:
         logging.error(f"Failed to sync to S3: {e}")
 
