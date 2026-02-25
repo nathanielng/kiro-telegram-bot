@@ -10,7 +10,20 @@
 When saving files, outputs, reports, code, or any other generated content,
 **always save them to the configured output directory** shown below.
 
-**Output Directory:** *(set by KIRO_OUTPUT_DIR — see .env)*
+**Output Directory:** `kirobot-out`
+
+## File Access URLs
+
+After saving a file, inform the user that it can be accessed at:
+
+**URL Pattern:** `https://$CLOUDFRONT_DOMAIN.cloudfront.net/kiro/$FILENAME`
+
+Replace `$FILENAME` with the actual filename (including any subdirectories relative to the output directory).
+Replace `$CLOUDFRONT_DOMAIN` with the Cloudfront Domain
+
+**Example:**
+- If you save `report.html`, the URL is: `https://dyjjx4800i1fn.cloudfront.net/kiro/report.html`
+- If you save `data/analysis.csv`, the URL is: `https://dyjjx4800i1fn.cloudfront.net/kiro/data/analysis.csv`
 
 ## Naming Conventions
 
