@@ -687,7 +687,11 @@ def main():
                         if chat_id and incoming_chat_id != chat_id:
                             continue
                         
-                        print(f"Received from {incoming_chat_id}: {user_text}")
+                        # Log received message
+                        logging.info(f"📨 Received from {incoming_chat_id}: {user_text}")
+                        
+                        # Send processing indicator
+                        send_message(api_key, incoming_chat_id, "⏳ Processing...")
                         
                         # Initialize user state if new
                         if incoming_chat_id not in user_states:
