@@ -275,6 +275,7 @@ def get_config():
         chat_history_size = 10
     guardrail_id = os.environ.get('BEDROCK_GUARDRAIL_ID', '').strip()
     guardrail_version = os.environ.get('BEDROCK_GUARDRAIL_VERSION', 'DRAFT').strip()
+    bedrock_model_id = os.environ.get('BEDROCK_MODEL_ID', 'global.minimax.minimax-m2.5').strip()
 
     logging.info("Environment variables loaded:")
     logging.info(f"  TELEGRAM_API_KEY: {redact_key(api_key)}")
@@ -286,12 +287,13 @@ def get_config():
     logging.info(f"  S3_BUCKET_NAME: {s3_bucket}")
     logging.info(f"  CHAT_HISTORY_SIZE: {chat_history_size}")
     logging.info(f"  BEDROCK_GUARDRAIL_ID: {guardrail_id if guardrail_id else 'Not configured'}")
+    logging.info(f"  BEDROCK_MODEL_ID: {bedrock_model_id}")
 
     if not api_key:
         print("Error: TELEGRAM_API_KEY must be set")
         sys.exit(1)
 
-    return api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, s3_bucket, chat_history_size, guardrail_id, guardrail_version
+    return api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, s3_bucket, chat_history_size, guardrail_id, guardrail_version, bedrock_model_id
 
 
 # ---------------------------------------------------------------------------
@@ -691,7 +693,7 @@ def invoke_kiro(prompt, kiro_output_dir, cloudfront_base_url, s3_prefix, history
 # ---------------------------------------------------------------------------
 
 def main():
-    api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, s3_bucket, chat_history_size, guardrail_id, guardrail_version = get_config()
+    api_key, chat_id, region, kiro_output_dir, cloudfront_base_url, s3_prefix, s3_bucket, chat_history_size, guardrail_id, guardrail_version, bedrock_model_id = get_config()
 
     # Ensure output directory exists and update Kiro's steering file
     ensure_output_dir(kiro_output_dir)
@@ -1004,7 +1006,7 @@ def main():
                                     continue
                             
                             if state["mode"] == "chat":
-                                reply = invoke_bedrock(bedrock, user_text)
+                                reply = invoke_bedrock(bedrock, user_text, bedrock_model_id)
                                 send_message(api_key, incoming_chat_id, reply)
                                 
                                 # Add to chat history if enabled
