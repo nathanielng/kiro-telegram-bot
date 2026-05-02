@@ -15,6 +15,7 @@ Telegram bot with dual modes: chat with AWS Bedrock or execute commands via Kiro
 - **Output truncation**: Long outputs are automatically truncated with full version saved to S3
 - **PII redaction**: Optional privacy protection for uploaded files and steering files
 - **Auto-sync**: Files are immediately synced to S3 after each Kiro command
+- **Kiro skills**: Bundled skills for cheatsheets, email drafting, presentations, and matrix visualizations
 - Long-polling for reliable message delivery
 - Background execution with logging
 - Auto-start on system boot (optional)
@@ -42,6 +43,16 @@ git clone <repository-url>
 cd kiro-telegram-bot
 uv sync
 ```
+
+### 3. Configure Environment
+
+Copy the sample environment file and fill in your values:
+
+```bash
+cp .env.sample .env
+```
+
+Edit `.env` with your settings (see Configuration below).
 
 ## Configuration
 
@@ -73,43 +84,39 @@ uv run create_guardrail.py
 
 This creates a guardrail with filters for sexual content, violence, hate speech, insults, misconduct, and prompt attacks. The guardrail ID is automatically saved to your `.env` file.
 
-### 4. Set Environment Variables
+### 4. Environment Variables
 
-#### Required Variables
+All variables can be set in `.env` (see `.env.sample`) or exported in your shell.
 
-```bash
-export TELEGRAM_API_KEY='your_api_key_here'
-```
+#### Required
 
-#### Optional Variables
+| Variable | Description |
+|---|---|
+| `TELEGRAM_API_KEY` | Telegram bot token from @BotFather |
 
-```bash
-# Single-user mode (leave unset for multi-user mode)
-export TELEGRAM_CHAT_ID='your_chat_id_here'
+#### Optional
 
-# AWS Configuration
-export AWS_REGION='us-west-2'  # Defaults to us-west-2
+| Variable | Default | Description |
+|---|---|---|
+| `TELEGRAM_CHAT_ID` | *(unset)* | Restrict to single user; leave unset for multi-user mode |
+| `AWS_REGION` | `us-west-2` | AWS region for Bedrock and S3 |
+| `BEDROCK_GUARDRAIL_ID` | *(unset)* | Bedrock Guardrail ID for content filtering |
+| `BEDROCK_GUARDRAIL_VERSION` | `DRAFT` | Guardrail version |
+| `KIRO_OUTPUT_DIR` | `kirobot-out` | Directory where Kiro saves generated files |
+| `S3_BUCKET_NAME` | *(unset)* | S3 bucket for syncing output files |
+| `S3_PREFIX` | *(unset)* | Optional prefix for S3 keys |
+| `CLOUDFRONT_BASE_URL` | *(unset)* | CloudFront distribution URL (no trailing slash) |
+| `ENABLE_PII_REDACTION` | `true` | Redact PII before uploading to S3 |
+| `CHAT_HISTORY_SIZE` | `10` | Number of recent exchanges to track per user |
 
-# Bedrock Guardrail (optional content filtering)
-export BEDROCK_GUARDRAIL_ID='your-guardrail-id'  # Optional
-export BEDROCK_GUARDRAIL_VERSION='DRAFT'  # Defaults to DRAFT
+#### Deployment Variables (managed by `deployment/deploy.sh`)
 
-# Kiro Output Directory (for folder monitoring)
-export KIRO_OUTPUT_DIR='kirobot-out'  # Defaults to kirobot-out
-
-# S3 and CloudFront (for file uploads)
-export S3_BUCKET_NAME='your-bucket-name'
-export S3_PREFIX='telegram-bot/'  # Optional prefix for S3 keys
-export CLOUDFRONT_BASE_URL='https://your-distribution.cloudfront.net'
-
-# PII Redaction
-export ENABLE_PII_REDACTION='true'  # Defaults to true
-
-# Chat History
-export CHAT_HISTORY_SIZE='10'  # Number of recent exchanges to track (default: 10)
-```
-
-Add these to your `~/.bashrc` or `~/.zshrc` to persist.
+| Variable | Description |
+|---|---|
+| `DEPLOY_S3_BUCKET_NAME` | S3 bucket name for deployment |
+| `DEPLOY_STACK_NAME` | CloudFormation stack name (default: `kiro-static-site`) |
+| `DEPLOY_CLOUDFRONT_DISTRIBUTION_ID` | Auto-populated after deployment |
+| `DEPLOY_CLOUDFRONT_URL` | Auto-populated after deployment |
 
 ## Usage
 
@@ -125,6 +132,8 @@ uv run telegram_bot.py
 ./run_telegram.sh
 ```
 
+> **Note:** `run_telegram.sh` requires both `TELEGRAM_API_KEY` and `TELEGRAM_CHAT_ID` to be set. For multi-user mode, run the bot directly with `uv run telegram_bot.py` instead.
+
 View logs:
 ```bash
 tail -f log/telegram_bot.log
@@ -132,13 +141,21 @@ tail -f log/telegram_bot.log
 
 ### Bot Commands
 
-- `/chat` - Switch to Bedrock chat mode (default)
-- `/code` - Switch to Kiro CLI mode
-- `/status` - Check folder monitor status
-- `/clear` - Clear chat history
-- `/model` - Select Kiro CLI model
-- `/help` - Show available commands
-- Any other text - Processed based on current mode
+| Command | Description |
+|---|---|
+| `/chat` | Switch to Bedrock chat mode |
+| `/code` | Switch to Kiro CLI mode (default) |
+| `/clear` | Clear and archive chat history |
+| `/model` | Select Kiro CLI model |
+| `/skills` | List available Kiro skills |
+| `/sync` | Force sync output directory to S3 |
+| `/status` | Check folder monitor status |
+| `/ping` | Check bot status, current mode, and chat ID |
+| `/history on\|off` | Toggle chat history recording |
+| `/help` | Show available commands |
+| `!ls` | List contents of the output directory |
+
+Kiro CLI commands are passed through in code mode: `/context show`, `/context clear`, `/agent list`, `/prompts list`, `/prompts get`, `/prompts create`, `/hooks`, `/usage`, `/mcp`.
 
 ### Security Features
 
@@ -202,21 +219,69 @@ Create a weather app that fetches data from a public API
 5. Continue the conversation: `Add a dark mode toggle`
 6. Clear history when starting a new project: `/clear`
 
+## Deployment
+
+The `deployment/` directory contains scripts to set up an S3 bucket and CloudFront distribution for serving generated files.
+
+### Deploy S3 + CloudFront
+
+```bash
+export DEPLOY_S3_BUCKET_NAME='your-bucket-name'
+./deployment/deploy.sh
+```
+
+This will:
+1. Create the S3 bucket if it doesn't exist
+2. Sync static files to S3
+3. Deploy a CloudFormation stack with a CloudFront distribution and S3 OAC
+4. Save the CloudFront distribution ID and URL back to `.env`
+
+Use `-y` to auto-approve prompts:
+
+```bash
+./deployment/deploy.sh -y
+```
+
+The CloudFormation template (`deployment/cloudfront-s3.yaml`) creates:
+- A CloudFront distribution with S3 origin (OAC, no caching)
+- An S3 bucket policy granting CloudFront access
+
+## Kiro Skills
+
+Bundled skills in `.kiro/skills/`:
+
+| Skill | Description |
+|---|---|
+| `cheatsheet-generator` | Generates cheatsheets |
+| `email_assistant` | Drafts emails using sample data from `data/email/` |
+| `revealjs-presentation` | Creates reveal.js presentations |
+| `2x2-matrix-generator` | Creates 2×2 matrix visualizations |
+
 ## Project Structure
 
 ```
 kiro-telegram-bot/
 ├── telegram_bot.py          # Main bot implementation
-├── telegram_bot_init.py     # Initial setup script
+├── telegram_bot_init.py     # Initial setup script (discover chat ID)
 ├── create_guardrail.py      # Bedrock Guardrail setup script
 ├── kiro_interactive.py      # PTY-based interactive Kiro CLI runner
 ├── folder_monitor.py        # S3 upload and file monitoring
 ├── run_telegram.sh          # Background execution script
 ├── run_monitor.sh           # Background folder monitor script
-├── setup_autostart.sh       # Auto-start configuration
+├── setup_autostart.sh       # Auto-start configuration (systemd/launchd/cron)
+├── .env.sample              # Sample environment configuration
 ├── .kiroignore              # Files to exclude from Kiro context
-├── requirements.txt         # Python dependencies
+├── requirements.txt         # Python dependencies (pip)
 ├── pyproject.toml           # UV project configuration
+├── deployment/
+│   ├── deploy.sh            # S3 + CloudFront deployment script
+│   └── cloudfront-s3.yaml   # CloudFormation template
+├── data/
+│   └── email/               # Sample email files for email_assistant skill
+├── .kiro/
+│   ├── steering/
+│   │   └── output-config.md # Auto-generated Kiro output configuration
+│   └── skills/              # Kiro skill definitions
 └── README.md                # This file
 ```
 
@@ -229,3 +294,5 @@ kiro-telegram-bot/
 **Kiro CLI not found**: Ensure Kiro CLI is installed and in PATH
 
 **Permission denied on run_telegram.sh**: Run `chmod +x run_telegram.sh`
+
+**Dependencies missing with `uv sync`**: The `pyproject.toml` only declares `boto3` and `requests`. If you need `watchdog` and `python-dotenv` (required by `folder_monitor.py` and `.env` loading), install them separately or use `pip install -r requirements.txt`.
