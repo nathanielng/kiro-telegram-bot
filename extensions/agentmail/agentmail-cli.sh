@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # agentmail-cli.sh — Safe AgentMail CLI wrapper
 # Enforces rate limits, audit logging, and destructive action blocking.
 # The agent calls this instead of raw curl against the AgentMail API.

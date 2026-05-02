@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # radicale-cli.sh — Safe CalDAV CLI wrapper for Radicale
 # Enforces rate limits, audit logging, and destructive action blocking.
 # The agent calls this instead of raw curl against Radicale.

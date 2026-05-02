@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Run the folder monitor in the background.
 # The monitor watches KIRO_OUTPUT_DIR for new/modified files, redacts PII,
 # uploads them to S3, and sends Telegram notifications with CloudFront URLs.

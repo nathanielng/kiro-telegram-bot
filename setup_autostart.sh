@@ -235,8 +235,10 @@ uninstall_launchd() {
 # cron helpers (fallback)
 # ---------------------------------------------------------------------------
 install_cron() {
-  local bot_entry="@reboot /bin/bash ${BOT_SCRIPT} >> ${SCRIPT_DIR}/telegram_bot.log 2>&1"
-  local mon_entry="@reboot /bin/bash ${MONITOR_SCRIPT} >> ${SCRIPT_DIR}/folder_monitor.log 2>&1"
+  local log_dir="${SCRIPT_DIR}/log"
+  mkdir -p "${log_dir}"
+  local bot_entry="@reboot /bin/bash ${BOT_SCRIPT} >> ${log_dir}/telegram_bot_cron.log 2>&1"
+  local mon_entry="@reboot /bin/bash ${MONITOR_SCRIPT} >> ${log_dir}/folder_monitor_cron.log 2>&1"
 
   # Remove any existing entries for these scripts, then add fresh ones
   (crontab -l 2>/dev/null | grep -v "${BOT_SCRIPT}" | grep -v "${MONITOR_SCRIPT}"; \
