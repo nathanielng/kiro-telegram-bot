@@ -19,6 +19,21 @@ if [ -z "$TELEGRAM_API_KEY" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
   exit 1
 fi
 
+# Optional configuration warnings
+if [ -z "$BEDROCK_GUARDRAIL_ID" ] || [ -z "$BEDROCK_GUARDRAIL_VERSION" ]; then
+  echo "⚠️  BEDROCK_GUARDRAIL_ID/VERSION not set. A guardrail mitigates risk by filtering harmful inputs."
+fi
+echo "📁 KIRO_OUTPUT_DIR: ${KIRO_OUTPUT_DIR:-kirobot-out}"
+if [ -z "$S3_BUCKET_NAME" ]; then
+  echo "⚠️  S3_BUCKET_NAME not set. Output files will not be synced to S3."
+fi
+if [ -z "$S3_PREFIX" ]; then
+  echo "⚠️  S3_PREFIX not set. Files will upload to the S3 bucket root."
+fi
+if [ -z "$CLOUDFRONT_BASE_URL" ]; then
+  echo "⚠️  CLOUDFRONT_BASE_URL not set. File URLs will not be shared via Telegram."
+fi
+
 # Check if bot is already running
 if [ -f "$PID_FILE" ]; then
   OLD_PID=$(cat "$PID_FILE")
