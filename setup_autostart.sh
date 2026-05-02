@@ -115,13 +115,15 @@ EOF
 }
 
 install_systemd() {
+  # systemd units run the Python scripts directly (foreground), not the
+  # shell wrappers which background with nohup and exit immediately.
   write_systemd_unit "${SERVICE_BOT}" \
     "Kiro Telegram Bot" \
-    "/bin/bash ${BOT_SCRIPT}"
+    "$(command -v uv || echo "${HOME}/.local/bin/uv") run ${SCRIPT_DIR}/telegram_bot.py"
 
   write_systemd_unit "${SERVICE_MON}" \
     "Kiro Folder Monitor (S3 sync)" \
-    "/bin/bash ${MONITOR_SCRIPT}"
+    "$(command -v uv || echo "${HOME}/.local/bin/uv") run ${SCRIPT_DIR}/folder_monitor.py"
 
   if [ "${SYSTEM_INSTALL}" = true ]; then
     sudo systemctl daemon-reload
@@ -162,9 +164,16 @@ LAUNCH_AGENTS_DIR="${HOME}/Library/LaunchAgents"
 write_plist() {
   local label="$1"
   local desc="$2"
-  local exec_cmd="$3"
+  shift 2
   local plist="${LAUNCH_AGENTS_DIR}/com.${label}.plist"
   mkdir -p "${LAUNCH_AGENTS_DIR}"
+
+  # Build ProgramArguments array
+  local args_xml=""
+  for a in "$@"; do
+    args_xml="${args_xml}    <string>${a}</string>
+"
+  done
 
   cat > "${plist}" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -176,9 +185,7 @@ write_plist() {
   <string>com.${label}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/bash</string>
-    <string>${exec_cmd}</string>
-  </array>
+${args_xml}  </array>
   <key>WorkingDirectory</key>
   <string>${SCRIPT_DIR}</string>
   <key>EnvironmentVariables</key>
@@ -201,8 +208,11 @@ EOF
 }
 
 install_launchd() {
-  write_plist "${SERVICE_BOT}"  "Kiro Telegram Bot"              "${BOT_SCRIPT}"
-  write_plist "${SERVICE_MON}"  "Kiro Folder Monitor (S3 sync)"  "${MONITOR_SCRIPT}"
+  local uv_path
+  uv_path="$(command -v uv || echo "${HOME}/.local/bin/uv")"
+
+  write_plist "${SERVICE_BOT}"  "Kiro Telegram Bot"              "${uv_path}" "run" "${SCRIPT_DIR}/telegram_bot.py"
+  write_plist "${SERVICE_MON}"  "Kiro Folder Monitor (S3 sync)"  "${uv_path}" "run" "${SCRIPT_DIR}/folder_monitor.py"
 
   launchctl load -w "${LAUNCH_AGENTS_DIR}/com.${SERVICE_BOT}.plist"
   launchctl load -w "${LAUNCH_AGENTS_DIR}/com.${SERVICE_MON}.plist"
