@@ -75,6 +75,67 @@ def add_to_history(history, role, content, max_size):
     return history
 
 
+# ---------------------------------------------------------------------------
+# Bookmark and info management (per user)
+# ---------------------------------------------------------------------------
+
+DATA_DIR = Path(__file__).parent / "data"
+
+
+def _load_json(filepath):
+    if filepath.exists():
+        try:
+            return json.loads(filepath.read_text())
+        except Exception:
+            pass
+    return []
+
+
+def _save_json(filepath, data):
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    filepath.write_text(json.dumps(data, indent=2))
+
+
+def add_bookmark(chat_id, text):
+    fp = DATA_DIR / f"bookmarks_{chat_id}.json"
+    items = _load_json(fp)
+    items.append({"text": text, "ts": time.strftime("%Y-%m-%d %H:%M:%S")})
+    _save_json(fp, items)
+    return len(items)
+
+
+def list_bookmarks(chat_id, count=5):
+    fp = DATA_DIR / f"bookmarks_{chat_id}.json"
+    items = _load_json(fp)
+    if not items:
+        return "No bookmarks saved."
+    recent = items[-count:]
+    lines = [f"📑 Bookmarks (last {len(recent)} of {len(items)}):"]
+    for i, b in enumerate(recent, 1):
+        lines.append(f"  {i}. {b['text']}  ({b['ts']})")
+    return "\n".join(lines)
+
+
+def add_info(chat_id, text):
+    fp = DATA_DIR / f"info_{chat_id}.json"
+    items = _load_json(fp)
+    items.append({"text": text, "ts": time.strftime("%Y-%m-%d %H:%M:%S")})
+    _save_json(fp, items)
+    return len(items)
+
+
+def list_info(chat_id, count=5):
+    fp = DATA_DIR / f"info_{chat_id}.json"
+    items = _load_json(fp)
+    if not items:
+        return "No info notes saved."
+    recent = items[-count:]
+    lines = [f"📝 Info notes (last {len(recent)} of {len(items)}):"]
+    for i, n in enumerate(recent, 1):
+        lines.append(f"  {i}. {n['text']}  ({n['ts']})")
+    return "\n".join(lines)
+
+
 def format_history_for_kiro(history):
     """Format chat history as a prefix for Kiro CLI prompts."""
     if not history:
@@ -833,6 +894,50 @@ def main():
                             elif not s3_bucket:
                                 send_message(api_key, incoming_chat_id, "❌ S3_BUCKET_NAME not configured")
 
+                        elif user_text.startswith("/bookmark"):
+                            parts = user_text.split(None, 1)
+                            arg = parts[1] if len(parts) > 1 else ""
+                            if arg == "help" or not arg:
+                                send_message(api_key, incoming_chat_id,
+                                    "📑 Bookmark commands:\n"
+                                    "/bookmark add <text> - Save a bookmark\n"
+                                    "/bookmark list [n] - Show last n bookmarks (default 5)")
+                            elif arg.startswith("add "):
+                                text = arg[4:].strip()
+                                if text:
+                                    n = add_bookmark(incoming_chat_id, text)
+                                    send_message(api_key, incoming_chat_id, f"📑 Bookmark #{n} saved.")
+                                else:
+                                    send_message(api_key, incoming_chat_id, "Usage: /bookmark add <text>")
+                            elif arg.startswith("list"):
+                                count_str = arg[4:].strip()
+                                count = int(count_str) if count_str.isdigit() else 5
+                                send_message(api_key, incoming_chat_id, list_bookmarks(incoming_chat_id, count))
+                            else:
+                                send_message(api_key, incoming_chat_id, "Unknown bookmark command. Try /bookmark help")
+
+                        elif user_text.startswith("/info"):
+                            parts = user_text.split(None, 1)
+                            arg = parts[1] if len(parts) > 1 else ""
+                            if arg == "help" or not arg:
+                                send_message(api_key, incoming_chat_id,
+                                    "📝 Info commands:\n"
+                                    "/info add <text> - Save an info note\n"
+                                    "/info list [n] - Show last n notes (default 5)")
+                            elif arg.startswith("add "):
+                                text = arg[4:].strip()
+                                if text:
+                                    n = add_info(incoming_chat_id, text)
+                                    send_message(api_key, incoming_chat_id, f"📝 Info note #{n} saved.")
+                                else:
+                                    send_message(api_key, incoming_chat_id, "Usage: /info add <text>")
+                            elif arg.startswith("list"):
+                                count_str = arg[4:].strip()
+                                count = int(count_str) if count_str.isdigit() else 5
+                                send_message(api_key, incoming_chat_id, list_info(incoming_chat_id, count))
+                            else:
+                                send_message(api_key, incoming_chat_id, "Unknown info command. Try /info help")
+
                         elif user_text == "/help":
                             history_status = "enabled" if state["history_enabled"] else "disabled"
                             reply = (
@@ -844,6 +949,8 @@ def main():
                                 "/model - Select Kiro CLI model\n"
                                 "/skills - List available Kiro skills\n"
                                 "/sync - Force sync output directory to S3\n"
+                                "/bookmark - Save and list bookmarks\n"
+                                "/info - Save and list info notes\n"
                                 "/help - Show this help message\n\n"
                                 "Special commands:\n"
                                 "!ls - List contents of output directory\n\n"

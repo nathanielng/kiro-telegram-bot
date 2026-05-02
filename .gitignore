@@ -14,3 +14,7 @@ __pycache__/
 kirobot-out/
 updates.json
 log/
+
+# Per-user data (bookmarks, info notes)
+data/bookmarks_*.json
+data/info_*.json

@@ -152,6 +152,8 @@ tail -f log/telegram_bot.log
 | `/status` | Check folder monitor status |
 | `/ping` | Check bot status, current mode, and chat ID |
 | `/history on\|off` | Toggle chat history recording |
+| `/bookmark` | Save and list bookmarks (`add`, `list`, `help`) |
+| `/info` | Save and list info notes (`add`, `list`, `help`) |
 | `/help` | Show available commands |
 | `!ls` | List contents of the output directory |
 
