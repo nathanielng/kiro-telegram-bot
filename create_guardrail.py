@@ -71,7 +71,7 @@ def save_to_env(guardrail_id, version):
 
 
 def main():
-    region = os.environ.get('AWS_REGION', 'us-west-2')
+    region = os.environ.get('AWS_REGION', 'ap-southeast-1')
     
     print(f"Creating Bedrock Guardrail in {region}...")
     print("This will create a guardrail with the following filters:")

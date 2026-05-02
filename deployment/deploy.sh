@@ -27,7 +27,6 @@ for arg in "$@"; do
             echo "  AWS_REGION              (optional) AWS region (default: us-west-2)"
             echo "  DEPLOY_STACK_NAME       (optional) CloudFormation stack name (default: kiro-static-site)"
             echo "  DEPLOY_SOURCE_DIR       (optional) Source directory for static files (default: .)"
-            echo "  DEPLOY_CACHE_TTL        (optional) Cache TTL in seconds (default: 0)"
             exit 0
             ;;
         *)
@@ -102,14 +101,12 @@ S3_BUCKET_NAME="${DEPLOY_S3_BUCKET_NAME}"
 AWS_REGION="${AWS_REGION:-us-west-2}"
 STACK_NAME="${DEPLOY_STACK_NAME:-kiro-static-site}"
 SOURCE_DIR="${DEPLOY_SOURCE_DIR:-.}"
-CACHE_TTL="${DEPLOY_CACHE_TTL:-0}"
 
 echo "=== Deployment Configuration ==="
 echo "S3 Bucket:    ${S3_BUCKET_NAME}"
 echo "AWS Region:   ${AWS_REGION}"
 echo "Stack Name:   ${STACK_NAME}"
 echo "Source Dir:   ${SOURCE_DIR}"
-echo "Cache TTL:    ${CACHE_TTL}s"
 echo "================================"
 
 # --- Create S3 bucket if it does not exist ---
@@ -199,7 +196,6 @@ if ! aws cloudformation deploy \
     --stack-name "${STACK_NAME}" \
     --parameter-overrides \
         S3BucketName="${S3_BUCKET_NAME}" \
-        CacheTTL="${CACHE_TTL}" \
     --region "${AWS_REGION}" \
     --no-fail-on-empty-changeset 2>/tmp/deploy-err.txt; then
     err_msg="$(cat /tmp/deploy-err.txt)"

@@ -3,13 +3,13 @@
 Telegram Bot with AWS Bedrock Integration and Kiro CLI
 
 Supports two modes:
-- /chat: Send prompts to Bedrock (default)
-- /code: Send prompts to Kiro CLI
+- /chat: Send prompts to Bedrock
+- /code: Send prompts to Kiro CLI (default)
 - /help: Show available commands
 
-Requires: TELEGRAM_API_KEY, TELEGRAM_CHAT_ID
-Optional:  AWS_REGION, KIRO_OUTPUT_DIR, S3_BUCKET_NAME, S3_PREFIX,
-           CLOUDFRONT_BASE_URL, CHAT_HISTORY_SIZE
+Requires: TELEGRAM_API_KEY
+Optional:  TELEGRAM_CHAT_ID, AWS_REGION, KIRO_OUTPUT_DIR, S3_BUCKET_NAME,
+           S3_PREFIX, CLOUDFRONT_BASE_URL, CHAT_HISTORY_SIZE
 """
 
 import json
@@ -39,7 +39,6 @@ except ImportError:
 
 # Path to the Kiro steering file that tells Kiro where to save outputs
 KIRO_STEERING_FILE = Path(__file__).parent / ".kiro" / "steering" / "output-config.md"
-CHAT_HISTORY_FILE = Path(__file__).parent / "log" / "chat_history.json"
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +268,11 @@ def get_config():
     cloudfront_base_url = os.environ.get('CLOUDFRONT_BASE_URL', '').rstrip('/')
     s3_prefix = os.environ.get('S3_PREFIX', '').strip('/')
     s3_bucket = os.environ.get('S3_BUCKET_NAME', '').strip()
-    chat_history_size = int(os.environ.get('CHAT_HISTORY_SIZE', '10'))
+    try:
+        chat_history_size = int(os.environ.get('CHAT_HISTORY_SIZE', '10'))
+    except ValueError:
+        logging.warning("CHAT_HISTORY_SIZE is not a valid integer, defaulting to 10")
+        chat_history_size = 10
     guardrail_id = os.environ.get('BEDROCK_GUARDRAIL_ID', '').strip()
     guardrail_version = os.environ.get('BEDROCK_GUARDRAIL_VERSION', 'DRAFT').strip()
 

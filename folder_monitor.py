@@ -15,7 +15,7 @@ Required environment variables:
 Optional environment variables:
   S3_PREFIX             - Key prefix within the S3 bucket (default: none)
   CLOUDFRONT_BASE_URL   - Base URL for generating public file URLs
-  AWS_REGION            - AWS region (default: us-west-2)
+  AWS_REGION            - AWS region (default: ap-southeast-1)
   ENABLE_PII_REDACTION  - "true" to redact PII before upload (default: true)
 """
 
@@ -252,7 +252,7 @@ def main():
     s3_bucket = os.environ.get("S3_BUCKET_NAME", "").strip()
     s3_prefix = os.environ.get("S3_PREFIX", "").strip()
     cf_base = os.environ.get("CLOUDFRONT_BASE_URL", "").strip()
-    region = os.environ.get("AWS_REGION", "us-west-2")
+    region = os.environ.get("AWS_REGION", "ap-southeast-1")
     tg_key = os.environ.get("TELEGRAM_API_KEY", "").strip()
     tg_chat = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
     enable_redaction_raw = os.environ.get("ENABLE_PII_REDACTION", "true").lower()
