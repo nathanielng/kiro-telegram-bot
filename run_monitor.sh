@@ -1,16 +1,18 @@
-#!/bin/bash
+#!/bin/sh
 # Run the folder monitor in the background.
 # The monitor watches KIRO_OUTPUT_DIR for new/modified files, redacts PII,
 # uploads them to S3, and sends Telegram notifications with CloudFront URLs.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_DIR="${VENV_DIR:-$HOME/.venv}"
+LOG_DIR="${SCRIPT_DIR}/log"
+PID_FILE="${LOG_DIR}/folder_monitor.pid"
 
 # Load .env if present (does not override variables already set in the environment)
 if [ -f "${SCRIPT_DIR}/.env" ]; then
   set -o allexport
   # shellcheck disable=SC1091
-  source "${SCRIPT_DIR}/.env"
+  . "${SCRIPT_DIR}/.env"
   set +o allexport
 fi
 
@@ -32,12 +34,23 @@ if [ -z "$S3_BUCKET_NAME" ]; then
   exit 1
 fi
 
+# Check if monitor is already running
+if [ -f "$PID_FILE" ]; then
+  OLD_PID=$(cat "$PID_FILE")
+  if kill -0 "$OLD_PID" 2>/dev/null; then
+    echo "Error: Folder monitor is already running (PID: $OLD_PID)"
+    echo "Stop it first: kill $OLD_PID"
+    exit 1
+  fi
+  rm -f "$PID_FILE"
+fi
+
 # Install uv if not already installed
-if ! command -v uv &> /dev/null; then
+if ! command -v uv >/dev/null 2>&1; then
   echo "uv not found. Installing..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="$HOME/.local/bin:$PATH"
-  if ! command -v uv &> /dev/null; then
+  if ! command -v uv >/dev/null 2>&1; then
     echo "Error: Failed to install uv"
     exit 1
   fi
@@ -55,9 +68,15 @@ if [ ! -d "$VENV_DIR" ]; then
   echo "Virtual environment created at $VENV_DIR."
 fi
 
-source "$VENV_DIR/bin/activate" && mkdir -p "${SCRIPT_DIR}/log" && nohup uv run "${SCRIPT_DIR}/folder_monitor.py" > "${SCRIPT_DIR}/log/folder_monitor.log" 2>&1 &
+mkdir -p "$LOG_DIR"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+LOG_FILE="${LOG_DIR}/folder_monitor_${TIMESTAMP}.log"
+
+. "$VENV_DIR/bin/activate" || { echo "Error: Failed to activate virtual environment"; exit 1; }
+nohup uv run "${SCRIPT_DIR}/folder_monitor.py" > "$LOG_FILE" 2>&1 &
 MONITOR_PID=$!
-echo "$MONITOR_PID" > "${SCRIPT_DIR}/log/folder_monitor.pid"
+echo "$MONITOR_PID" > "$PID_FILE"
+
 echo "Folder monitor started in background. PID: $MONITOR_PID"
 echo "Watching: $KIRO_OUTPUT_DIR"
-echo "View logs: tail -f ${SCRIPT_DIR}/log/folder_monitor.log"
+echo "View logs: tail -f $LOG_FILE"

@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/bin/sh
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_DIR="${VENV_DIR:-$HOME/.venv}"
 LOG_DIR="${SCRIPT_DIR}/log"
 PID_FILE="${LOG_DIR}/telegram_bot.pid"
@@ -8,8 +8,7 @@ PID_FILE="${LOG_DIR}/telegram_bot.pid"
 # Load .env if present (does not override variables already set in the environment)
 if [ -f "${SCRIPT_DIR}/.env" ]; then
   set -o allexport
-  # shellcheck disable=SC1091
-  source "${SCRIPT_DIR}/.env"
+  . "${SCRIPT_DIR}/.env"
   set +o allexport
 fi
 
@@ -32,11 +31,11 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 # Install uv if not already installed
-if ! command -v uv &> /dev/null; then
+if ! command -v uv >/dev/null 2>&1; then
   echo "uv not found. Installing..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="$HOME/.local/bin:$PATH"
-  if ! command -v uv &> /dev/null; then
+  if ! command -v uv >/dev/null 2>&1; then
     echo "Error: Failed to install uv"
     exit 1
   fi
@@ -58,7 +57,7 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_FILE="${LOG_DIR}/telegram_bot_${TIMESTAMP}.log"
 
-source "$VENV_DIR/bin/activate" || { echo "Error: Failed to activate virtual environment"; exit 1; }
+. "$VENV_DIR/bin/activate" || { echo "Error: Failed to activate virtual environment"; exit 1; }
 nohup uv run "${SCRIPT_DIR}/telegram_bot.py" > "$LOG_FILE" 2>&1 &
 BOT_PID=$!
 echo "$BOT_PID" > "$PID_FILE"
