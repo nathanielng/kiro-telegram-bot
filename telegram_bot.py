@@ -550,10 +550,10 @@ def check_monitor_status():
 # Backend invocations
 # ---------------------------------------------------------------------------
 
-def invoke_bedrock(bedrock, prompt):
+def invoke_bedrock(bedrock, prompt, model_id="global.minimax.minimax-m2.5"):
     try:
         response = bedrock.invoke_model(
-            modelId="global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+            modelId=model_id,
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 4096,
