@@ -82,7 +82,7 @@ def sync_to_dynamodb(conn):
         logging.error("boto3 not installed — cannot sync to DynamoDB")
         return
 
-    region = os.environ.get("AWS_REGION", "us-west-2")
+    region = os.environ.get("AWS_REGION", "ap-southeast-1")
     table_bookmarks = os.environ.get("DYNAMODB_TABLE_BOOKMARKS", "kiro-bookmarks")
     table_info = os.environ.get("DYNAMODB_TABLE_INFO", "kiro-info")
 

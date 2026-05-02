@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # =============================================================================
 # setup_autostart.sh
 #
@@ -198,9 +198,9 @@ ${args_xml}  </array>
   <key>KeepAlive</key>
   <true/>
   <key>StandardOutPath</key>
-  <string>${SCRIPT_DIR}/${label}.log</string>
+  <string>${SCRIPT_DIR}/log/${label}.log</string>
   <key>StandardErrorPath</key>
-  <string>${SCRIPT_DIR}/${label}.log</string>
+  <string>${SCRIPT_DIR}/log/${label}.log</string>
 </dict>
 </plist>
 EOF
@@ -219,7 +219,7 @@ install_launchd() {
 
   ok "LaunchAgents loaded."
   info "Check status:  launchctl list | grep kiro"
-  info "View logs:     tail -f ${SCRIPT_DIR}/${SERVICE_BOT}.log"
+  info "View logs:     tail -f ${SCRIPT_DIR}/log/${SERVICE_BOT}.log"
 }
 
 uninstall_launchd() {

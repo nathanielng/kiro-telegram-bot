@@ -263,7 +263,7 @@ def redact_key(value):
 def get_config():
     api_key = os.environ.get('TELEGRAM_API_KEY')
     chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()  # Optional now
-    region = os.environ.get('AWS_REGION', 'us-west-2')
+    region = os.environ.get('AWS_REGION', 'ap-southeast-1')
     kiro_output_dir = os.environ.get('KIRO_OUTPUT_DIR', 'kirobot-out').strip()
     cloudfront_base_url = os.environ.get('CLOUDFRONT_BASE_URL', '').rstrip('/')
     s3_prefix = os.environ.get('S3_PREFIX', '').strip('/')
@@ -954,6 +954,8 @@ def main():
                                 "/model - Select Kiro CLI model\n"
                                 "/skills - List available Kiro skills\n"
                                 "/sync - Force sync output directory to S3\n"
+                                "/status - Check folder monitor status\n"
+                                "/ping - Check bot status and current mode\n"
                                 "/bookmark - Save and list bookmarks\n"
                                 "/info - Save and list info notes\n"
                                 "/help - Show this help message\n\n"

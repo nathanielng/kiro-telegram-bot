@@ -66,5 +66,5 @@ Outputs:
     Value: !Ref CloudFrontDistribution
 
   DistributionDomainName:
-    Description: CloudFront Distribution URL
-    Value: !Sub "https://${CloudFrontDistribution.DomainName}"
+    Description: CloudFront Distribution Domain Name
+    Value: !GetAtt CloudFrontDistribution.DomainName

@@ -4,7 +4,7 @@ Telegram bot with dual modes: chat with AWS Bedrock or execute commands via Kiro
 
 ## Features
 
-- **/chat mode**: Send prompts to AWS Bedrock (Claude Sonnet 4.5)
+- **/chat mode**: Send prompts to AWS Bedrock (MiniMax M2.5 by default, configurable via `BEDROCK_MODEL_ID`)
 - **/code mode**: Execute commands through Kiro CLI with automatic file operations
 - **Multi-user support**: Can serve multiple users simultaneously or restrict to single user
 - **Content filtering**: Optional Bedrock Guardrail integration for input validation
@@ -78,7 +78,7 @@ This will output your chat ID. If you set `TELEGRAM_CHAT_ID`, the bot will only 
 To enable content filtering for user inputs:
 
 ```bash
-export AWS_REGION='us-west-2'  # Optional, defaults to us-west-2
+export AWS_REGION='ap-southeast-1'  # Optional, defaults to ap-southeast-1
 uv run create_guardrail.py
 ```
 
@@ -99,9 +99,10 @@ All variables can be set in `.env` (see `.env.sample`) or exported in your shell
 | Variable | Default | Description |
 |---|---|---|
 | `TELEGRAM_CHAT_ID` | *(unset)* | Restrict to single user; leave unset for multi-user mode |
-| `AWS_REGION` | `us-west-2` | AWS region for Bedrock and S3 |
+| `AWS_REGION` | `ap-southeast-1` | AWS region for Bedrock and S3 |
 | `BEDROCK_GUARDRAIL_ID` | *(unset)* | Bedrock Guardrail ID for content filtering |
 | `BEDROCK_GUARDRAIL_VERSION` | `DRAFT` | Guardrail version |
+| `BEDROCK_MODEL_ID` | `global.minimax.minimax-m2.5` | Bedrock model ID for /chat mode |
 | `KIRO_OUTPUT_DIR` | `kirobot-out` | Directory where Kiro saves generated files |
 | `S3_BUCKET_NAME` | *(unset)* | S3 bucket for syncing output files |
 | `S3_PREFIX` | *(unset)* | Optional prefix for S3 keys |

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,7 +24,7 @@ for arg in "$@"; do
             echo ""
             echo "Configuration (via environment variables or .env file):"
             echo "  DEPLOY_S3_BUCKET_NAME   (required) S3 bucket name"
-            echo "  AWS_REGION              (optional) AWS region (default: us-west-2)"
+            echo "  AWS_REGION              (optional) AWS region (default: ap-southeast-1)"
             echo "  DEPLOY_STACK_NAME       (optional) CloudFormation stack name (default: kiro-static-site)"
             echo "  DEPLOY_SOURCE_DIR       (optional) Source directory for static files (default: .)"
             exit 0
@@ -98,7 +98,7 @@ if [ -z "${DEPLOY_S3_BUCKET_NAME:-}" ]; then
          "Set it as an environment variable or add it to ${ENV_FILE}. Example: DEPLOY_S3_BUCKET_NAME=my-bucket ./deployment/deploy.sh"
 fi
 S3_BUCKET_NAME="${DEPLOY_S3_BUCKET_NAME}"
-AWS_REGION="${AWS_REGION:-us-west-2}"
+AWS_REGION="${AWS_REGION:-ap-southeast-1}"
 STACK_NAME="${DEPLOY_STACK_NAME:-kiro-static-site}"
 SOURCE_DIR="${DEPLOY_SOURCE_DIR:-.}"
 
