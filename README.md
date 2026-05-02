@@ -295,6 +295,8 @@ kiro-telegram-bot/
 ├── run_telegram.sh          # Background execution script
 ├── run_monitor.sh           # Background folder monitor script
 ├── setup_autostart.sh       # Auto-start configuration (systemd/launchd/cron)
+├── sync_db.py               # Cron script: JSON → SQLite, optional DynamoDB sync
+├── setup_db.py              # Initialize SQLite and optionally create DynamoDB tables
 ├── .env.sample              # Sample environment configuration
 ├── .kiroignore              # Files to exclude from Kiro context
 ├── requirements.txt         # Python dependencies (pip)

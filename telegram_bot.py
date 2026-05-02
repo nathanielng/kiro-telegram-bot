@@ -79,7 +79,7 @@ def add_to_history(history, role, content, max_size):
 # Bookmark and info management (per user)
 # ---------------------------------------------------------------------------
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path(__file__).parent / "db"
 
 
 def _load_json(filepath):

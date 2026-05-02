@@ -15,6 +15,5 @@ kirobot-out/
 updates.json
 log/
 
-# Per-user data (bookmarks, info notes)
-data/bookmarks_*.json
-data/info_*.json
+# Per-user data (bookmarks, info notes, SQLite)
+db/
