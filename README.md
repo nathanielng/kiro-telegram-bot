@@ -256,6 +256,30 @@ Bundled skills in `.kiro/skills/`:
 | `email_assistant` | Drafts emails using sample data from `data/email/` |
 | `revealjs-presentation` | Creates reveal.js presentations |
 | `2x2-matrix-generator` | Creates 2×2 matrix visualizations |
+| `pdf-generation` | Generates PDF documents using reportlab |
+| `pptx-generation` | Generates PowerPoint presentations using python-pptx |
+
+## Extensions
+
+Optional extensions in `extensions/`. These are not required for the core Telegram bot — install only what you need.
+
+### AgentMail (`extensions/agentmail/`)
+
+Email capabilities via [AgentMail](https://agentmail.to/) with isolated agent inboxes. Includes a CLI wrapper with:
+- Rate limits (20 sends/day, 5 deletes/day)
+- Sensitive content scanning (API keys, tokens, private keys)
+- Two modes: `--redact` (default, replaces secrets with `[REDACTED]`) or `--block` (rejects the send entirely)
+- Audit logging to `~/.agentmail-audit/`
+
+See [`extensions/agentmail/README.md`](extensions/agentmail/README.md) for setup.
+
+### Radicale CalDAV (`extensions/radicale/`)
+
+Calendar management via a local [Radicale](https://radicale.org/) CalDAV server. Includes a CLI wrapper with:
+- Rate limits (10 creates/day, 3 deletes/day, 15 updates/day)
+- Audit logging to `~/.radicale-audit/`
+
+See [`extensions/radicale/README.md`](extensions/radicale/README.md) for setup.
 
 ## Project Structure
 
@@ -276,6 +300,9 @@ kiro-telegram-bot/
 ├── deployment/
 │   ├── deploy.sh            # S3 + CloudFront deployment script
 │   └── cloudfront-s3.yaml   # CloudFormation template
+├── extensions/
+│   ├── agentmail/           # Optional AgentMail email extension
+│   └── radicale/            # Optional CalDAV calendar extension
 ├── data/
 │   └── email/               # Sample email files for email_assistant skill
 ├── .kiro/
