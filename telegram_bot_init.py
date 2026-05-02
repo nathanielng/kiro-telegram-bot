@@ -83,6 +83,38 @@ def send_test_message(api_key, chat_id, message="Test message"):
         sys.exit(1)
 
 
+def update_env_file(key, value):
+    """Update or add a key=value pair in .env. Returns True if file was modified."""
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    lines = []
+    found = False
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            lines = f.readlines()
+        for i, line in enumerate(lines):
+            if line.startswith(f"{key}="):
+                lines[i] = f"{key}={value}\n"
+                found = True
+                break
+    if not found:
+        lines.append(f"{key}={value}\n")
+    with open(env_path, "w") as f:
+        f.writelines(lines)
+    return True
+
+
+def env_has_key(key):
+    """Check if a key already has a non-empty value in .env."""
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.exists(env_path):
+        return False
+    with open(env_path) as f:
+        for line in f:
+            if line.startswith(f"{key}=") and line.strip().split("=", 1)[1]:
+                return True
+    return False
+
+
 def main():
     api_key = get_api_key()
     data = fetch_updates(api_key)
@@ -90,11 +122,22 @@ def main():
     chat_id = extract_chat_id(data)
 
     message = f"✅ Bot initialization successful!\n✅ Chat ID: {chat_id}"
-    response = send_test_message(api_key, chat_id, message)
+    send_test_message(api_key, chat_id, message)
 
-    print("\n✅ Bot initialization successful!")
+    print(f"\n✅ Bot initialization successful!")
     print(f"✅ Chat ID: {chat_id}")
     print("✅ Test message sent")
+
+    # Offer to save to .env
+    save = input("\nSave to .env? [y/N] ").strip().lower()
+    if save in ("y", "yes"):
+        if not env_has_key("TELEGRAM_API_KEY"):
+            update_env_file("TELEGRAM_API_KEY", api_key)
+            print("✅ TELEGRAM_API_KEY saved to .env")
+        else:
+            print("ℹ️  TELEGRAM_API_KEY already set in .env, skipping")
+        update_env_file("TELEGRAM_CHAT_ID", str(chat_id))
+        print("✅ TELEGRAM_CHAT_ID saved to .env")
 
 
 if __name__ == "__main__":
