@@ -34,6 +34,11 @@ AUTH="Authorization: Bearer $AGENTMAIL_API_KEY"
 
 log() { echo "[$(date -Iseconds)] $*" >> "$LOG_FILE"; }
 
+# Escape text for safe JSON string interpolation
+json_escape() {
+  echo "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' ' '
+}
+
 # Scan text for patterns that look like leaked secrets.
 # In --block mode: exit with error if found.
 # In --redact mode: replace matches with [REDACTED] and return cleaned text.
@@ -111,7 +116,7 @@ case "$ACTION" in
     ;;
 
   create-inbox)
-    DISPLAY_NAME="${1:-My Agent}"
+    DISPLAY_NAME=$(json_escape "${1:-My Agent}")
     log "CREATE_INBOX display_name=$DISPLAY_NAME"
     curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
       -d "{\"display_name\": \"$DISPLAY_NAME\"}" \
@@ -139,6 +144,9 @@ case "$ACTION" in
     increment_counter "send" $MAX_SENDS_PER_DAY
     SUBJECT=$(check_sensitive "$SUBJECT")
     BODY=$(check_sensitive "$BODY")
+    SUBJECT=$(json_escape "$SUBJECT")
+    BODY=$(json_escape "$BODY")
+    TO=$(json_escape "$TO")
     log "SEND inbox=$INBOX_ID to=$TO subject=$SUBJECT"
     curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
       -d "{\"to\": [\"$TO\"], \"subject\": \"$SUBJECT\", \"text\": \"$BODY\"}" \
@@ -151,6 +159,7 @@ case "$ACTION" in
       echo "Error: reply requires <inbox_id> <message_id> <body>" && exit 1
     increment_counter "send" $MAX_SENDS_PER_DAY
     BODY=$(check_sensitive "$BODY")
+    BODY=$(json_escape "$BODY")
     log "REPLY inbox=$INBOX_ID message=$MSG_ID"
     curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
       -d "{\"text\": \"$BODY\"}" \

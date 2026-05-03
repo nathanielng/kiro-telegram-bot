@@ -5,7 +5,7 @@ Optional extension that adds calendar management via a local [Radicale](https://
 ## Prerequisites
 
 - Radicale installed and running (`sudo apt install radicale`)
-- A calendar collection created (e.g., `http://localhost:5232/pi/calendar.ics/`)
+- A calendar collection created (e.g., `http://localhost:5232/your-user/calendar.ics/`)
 
 ## Setup
 
@@ -22,7 +22,7 @@ chmod +x ~/kiro-telegram-bot/radicale-cli.sh
 cp extensions/radicale/caldav-calendar.md .kiro/skills/
 ```
 
-3. Optionally set `CALDAV_URL` in `.env` (defaults to `http://localhost:5232/pi/calendar.ics`):
+3. Optionally set `CALDAV_URL` in `.env` (defaults to `http://localhost:5232/user/calendar.ics`):
 
 ```
 CALDAV_URL=http://localhost:5232/your-user/calendar.ics

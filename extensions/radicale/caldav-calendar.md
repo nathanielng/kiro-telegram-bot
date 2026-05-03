@@ -24,15 +24,7 @@ radicale-cli.sh delete <uid>
 
 ## Time Zone Handling
 
-All times are stored in UTC internally. The user's local timezone is UTC+8 (SGT).
-
-When the user says a time, convert to UTC before calling the CLI:
-- "3 PM" (local) → `T070000Z` (UTC) — subtract 8 hours
-- "9:30 AM" (local) → `T013000Z` (UTC)
-
-When displaying events to the user, convert UTC back to local time:
-- `T040000Z` → 12:00 PM SGT
-- `T013000Z` → 9:30 AM SGT
+All times are stored in UTC internally. When the user provides a local time, ask for their timezone if not already known, then convert to UTC before calling the CLI. When displaying events, convert UTC back to the user's local timezone.
 
 ## Usage Patterns
 

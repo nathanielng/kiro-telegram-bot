@@ -3,7 +3,7 @@
 # Enforces rate limits, audit logging, and destructive action blocking.
 # The agent calls this instead of raw curl against Radicale.
 
-CALDAV_URL="${CALDAV_URL:-http://localhost:5232/pi/calendar.ics}"
+CALDAV_URL="${CALDAV_URL:-http://localhost:5232/user/calendar.ics}"
 AUDIT_DIR="${AUDIT_DIR:-$HOME/.radicale-audit}"
 LOG_FILE="${AUDIT_DIR}/calendar-$(date +%Y%m%d).log"
 RATE_FILE="${AUDIT_DIR}/calendar-rate-$(date +%Y%m%d)"
