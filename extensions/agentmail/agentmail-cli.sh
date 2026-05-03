@@ -14,13 +14,16 @@ SENSITIVE_MODE="redact"  # default: redact. Use --block to block entirely.
 
 mkdir -p "$AUDIT_DIR"
 
-# Parse global flags
+# Parse global flags, collect remaining args
+ARGS=()
 for arg in "$@"; do
   case "$arg" in
-    --redact) SENSITIVE_MODE="redact"; shift ;;
-    --block)  SENSITIVE_MODE="block"; shift ;;
+    --redact) SENSITIVE_MODE="redact" ;;
+    --block)  SENSITIVE_MODE="block" ;;
+    *)        ARGS+=("$arg") ;;
   esac
 done
+set -- "${ARGS[@]}"
 
 if [ -z "$AGENTMAIL_API_KEY" ]; then
   echo "Error: AGENTMAIL_API_KEY environment variable not set."

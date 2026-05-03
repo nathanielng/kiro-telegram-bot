@@ -1,4 +1,22 @@
-.kiroignore
+# Sensitive files
 *.env
-../*.env
+.env.*
 ~/.env
+~/.ssh/
+~/.aws/
+
+# Generated / runtime
+db/
+log/
+kirobot-out/
+.quarantine/
+__pycache__/
+*.pyc
+.venv/
+uv.lock
+
+# Git
+.git/
+
+# OS
+.DS_Store

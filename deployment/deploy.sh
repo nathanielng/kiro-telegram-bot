@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TEMPLATE_FILE="${SCRIPT_DIR}/cloudfront-s3.yaml"
 ENV_FILE="${PROJECT_DIR}/.env"
+ERR_FILE="$(mktemp)"
+trap 'rm -f "$ERR_FILE"' EXIT
 
 # --- Parse flags ---
 AUTO_APPROVE=false
@@ -124,8 +126,8 @@ else
     if [ "${AWS_REGION}" = "us-east-1" ]; then
         if ! aws s3api create-bucket \
                 --bucket "${S3_BUCKET_NAME}" \
-                --region "${AWS_REGION}" 2>/tmp/deploy-err.txt; then
-            err_msg="$(cat /tmp/deploy-err.txt)"
+                --region "${AWS_REGION}" 2>$ERR_FILE; then
+            err_msg="$(cat $ERR_FILE)"
             if echo "${err_msg}" | grep -q "BucketAlreadyExists"; then
                 fail "The bucket name '${S3_BUCKET_NAME}' is already taken globally by another AWS account." \
                      "S3 bucket names are globally unique. Choose a different name (e.g. add a random suffix)."
@@ -141,8 +143,8 @@ else
         if ! aws s3api create-bucket \
                 --bucket "${S3_BUCKET_NAME}" \
                 --region "${AWS_REGION}" \
-                --create-bucket-configuration LocationConstraint="${AWS_REGION}" 2>/tmp/deploy-err.txt; then
-            err_msg="$(cat /tmp/deploy-err.txt)"
+                --create-bucket-configuration LocationConstraint="${AWS_REGION}" 2>$ERR_FILE; then
+            err_msg="$(cat $ERR_FILE)"
             if echo "${err_msg}" | grep -q "BucketAlreadyExists"; then
                 fail "The bucket name '${S3_BUCKET_NAME}' is already taken globally by another AWS account." \
                      "S3 bucket names are globally unique. Choose a different name (e.g. add a random suffix)."
@@ -177,8 +179,8 @@ if ! aws s3 sync "${SOURCE_DIR}" "s3://${S3_BUCKET_NAME}/" \
     --exclude "*.yml" \
     --exclude "__pycache__/*" \
     --exclude ".git/*" \
-    --exclude "deployment/*" 2>/tmp/deploy-err.txt; then
-    err_msg="$(cat /tmp/deploy-err.txt)"
+    --exclude "deployment/*" 2>$ERR_FILE; then
+    err_msg="$(cat $ERR_FILE)"
     fail "Failed to sync files to S3: ${err_msg}" \
          "Ensure the source directory '${SOURCE_DIR}' exists and your IAM policy allows s3:PutObject on the bucket."
 fi
@@ -197,8 +199,8 @@ if ! aws cloudformation deploy \
     --parameter-overrides \
         S3BucketName="${S3_BUCKET_NAME}" \
     --region "${AWS_REGION}" \
-    --no-fail-on-empty-changeset 2>/tmp/deploy-err.txt; then
-    err_msg="$(cat /tmp/deploy-err.txt)"
+    --no-fail-on-empty-changeset 2>$ERR_FILE; then
+    err_msg="$(cat $ERR_FILE)"
     if echo "${err_msg}" | grep -q "ValidationError"; then
         fail "CloudFormation template validation failed: ${err_msg}" \
              "Check deployment/cloudfront-s3.yaml for syntax errors. Run: aws cloudformation validate-template --template-body file://${TEMPLATE_FILE}"
@@ -221,8 +223,8 @@ echo "=== Stack Outputs ==="
 if ! STACK_OUTPUT="$(aws cloudformation describe-stacks \
     --stack-name "${STACK_NAME}" \
     --region "${AWS_REGION}" \
-    --output json 2>/tmp/deploy-err.txt)"; then
-    err_msg="$(cat /tmp/deploy-err.txt)"
+    --output json 2>$ERR_FILE)"; then
+    err_msg="$(cat $ERR_FILE)"
     fail "Failed to retrieve stack outputs: ${err_msg}" \
          "The stack may still be deploying. Check status: aws cloudformation describe-stacks --stack-name ${STACK_NAME} --region ${AWS_REGION}"
 fi

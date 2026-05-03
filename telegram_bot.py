@@ -565,7 +565,8 @@ def invoke_bedrock(bedrock, prompt, model_id="global.minimax.minimax-m2.5"):
         result = json.loads(response['body'].read())
         return result['content'][0]['text']
     except Exception as e:
-        return f"Error: {e}"
+        logging.error(f"Bedrock invocation error: {e}")
+        return "Error: Failed to get a response from Bedrock. Check logs for details."
 
 
 def check_guardrail(bedrock, text, guardrail_id, guardrail_version):
@@ -755,9 +756,6 @@ def main():
                         
                         # Log received message
                         logging.info(f"📨 Received from {incoming_chat_id}: {user_text}")
-                        
-                        # Send processing indicator
-                        send_message(api_key, incoming_chat_id, "⏳ Processing...")
                         
                         # Initialize user state if new
                         if incoming_chat_id not in user_states:
@@ -971,6 +969,7 @@ def main():
 
                         elif is_kiro_cmd:
                             # Pass Kiro commands directly to Kiro CLI (no history for commands)
+                            send_message(api_key, incoming_chat_id, "⏳ Processing...")
                             reply, new_files, full_url, security_results = invoke_kiro(
                                 user_text,
                                 kiro_output_dir,
@@ -1006,6 +1005,8 @@ def main():
                                 if not passed:
                                     send_message(api_key, incoming_chat_id, msg)
                                     continue
+                            
+                            send_message(api_key, incoming_chat_id, "⏳ Processing...")
                             
                             if state["mode"] == "chat":
                                 reply = invoke_bedrock(bedrock, user_text, bedrock_model_id)

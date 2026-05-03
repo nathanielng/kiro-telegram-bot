@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # Run the folder monitor in the background.
 # The monitor watches KIRO_OUTPUT_DIR for new/modified files, redacts PII,
 # uploads them to S3, and sends Telegram notifications with CloudFront URLs.
@@ -7,6 +8,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_DIR="${VENV_DIR:-$HOME/.venv}"
 LOG_DIR="${SCRIPT_DIR}/log"
 PID_FILE="${LOG_DIR}/folder_monitor.pid"
+RESTART=false
+
+# Parse flags
+for arg in "$@"; do
+  case "$arg" in
+    --restart|-r) RESTART=true ;;
+  esac
+done
 
 # Load .env if present (does not override variables already set in the environment)
 if [ -f "${SCRIPT_DIR}/.env" ]; then
@@ -38,9 +47,17 @@ fi
 if [ -f "$PID_FILE" ]; then
   OLD_PID=$(cat "$PID_FILE")
   if kill -0 "$OLD_PID" 2>/dev/null; then
-    echo "Error: Folder monitor is already running (PID: $OLD_PID)"
-    echo "Stop it first: kill $OLD_PID"
-    exit 1
+    if [ "$RESTART" = true ]; then
+      echo "Stopping existing monitor (PID: $OLD_PID)..."
+      kill "$OLD_PID" 2>/dev/null
+      sleep 1
+      kill -0 "$OLD_PID" 2>/dev/null && kill -9 "$OLD_PID" 2>/dev/null
+    else
+      echo "Error: Folder monitor is already running (PID: $OLD_PID)"
+      echo "Stop it first: kill $OLD_PID"
+      echo "Or use --restart to auto-restart."
+      exit 1
+    fi
   fi
   rm -f "$PID_FILE"
 fi

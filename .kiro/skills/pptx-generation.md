@@ -48,7 +48,7 @@ prs.save("output.pptx")
 ## Publishing
 
 - **Default:** Save the file to the configured output directory.
-- **If the user asks to publish:** Save to the output directory and provide the CloudFront URL: `$CLOUDFRONT_BASE_URL/$S3_PREFIX/<filename>`
+- **If the user asks to publish:** Save to the output directory. The bot will automatically sync to S3 and provide the CloudFront URL.
 
 ## Usage
 

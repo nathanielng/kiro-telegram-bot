@@ -16,6 +16,11 @@ mkdir -p "$AUDIT_DIR"
 
 log() { echo "[$(date -Iseconds)] $*" >> "$LOG_FILE"; }
 
+# Sanitize text for iCalendar values (RFC 5545)
+ical_escape() {
+  echo "$1" | sed 's/\\/\\\\/g; s/;/\\;/g; s/,/\\,/g' | tr '\n' ' '
+}
+
 increment_counter() {
   key="$1" max="$2"
   count=0
@@ -72,14 +77,15 @@ case "$ACTION" in
     ;;
 
   create)
-    UID_VAL="$1"; SUMMARY="$2"; DTSTART="$3"; DTEND="$4"
+    UID_VAL="$1"; SUMMARY=$(ical_escape "$2"); DTSTART="$3"; DTEND="$4"
     DESCRIPTION="${5:-}"; STATUS="${6:-CONFIRMED}"
     [ -z "$UID_VAL" ] || [ -z "$SUMMARY" ] || [ -z "$DTSTART" ] || [ -z "$DTEND" ] && \
       echo "Error: create requires <uid> <summary> <start> <end>" && exit 1
     increment_counter "create" $MAX_CREATES_PER_DAY
     log "CREATE uid=$UID_VAL summary=$SUMMARY start=$DTSTART end=$DTEND"
     DESC_LINE=""
-    [ -n "$DESCRIPTION" ] && DESC_LINE="DESCRIPTION:${DESCRIPTION}"
+    [ -n "$DESCRIPTION" ] && DESC_LINE="
+DESCRIPTION:$(ical_escape "$DESCRIPTION")"
     curl -s -o /dev/null -w "%{http_code}" -X PUT \
       -H "Content-Type: text/calendar" \
       --data-binary "BEGIN:VCALENDAR
@@ -88,8 +94,7 @@ BEGIN:VEVENT
 UID:${UID_VAL}
 DTSTART:${DTSTART}
 DTEND:${DTEND}
-SUMMARY:${SUMMARY}
-${DESC_LINE}
+SUMMARY:${SUMMARY}${DESC_LINE}
 STATUS:${STATUS}
 END:VEVENT
 END:VCALENDAR" \
@@ -104,14 +109,15 @@ END:VCALENDAR" \
     ;;
 
   update)
-    UID_VAL="$1"; SUMMARY="$2"; DTSTART="$3"; DTEND="$4"
+    UID_VAL="$1"; SUMMARY=$(ical_escape "$2"); DTSTART="$3"; DTEND="$4"
     DESCRIPTION="${5:-}"; STATUS="${6:-CONFIRMED}"
     [ -z "$UID_VAL" ] || [ -z "$SUMMARY" ] || [ -z "$DTSTART" ] || [ -z "$DTEND" ] && \
       echo "Error: update requires <uid> <summary> <start> <end>" && exit 1
     increment_counter "update" $MAX_UPDATES_PER_DAY
     log "UPDATE uid=$UID_VAL summary=$SUMMARY start=$DTSTART end=$DTEND"
     DESC_LINE=""
-    [ -n "$DESCRIPTION" ] && DESC_LINE="DESCRIPTION:${DESCRIPTION}"
+    [ -n "$DESCRIPTION" ] && DESC_LINE="
+DESCRIPTION:$(ical_escape "$DESCRIPTION")"
     curl -s -o /dev/null -w "%{http_code}" -X PUT \
       -H "Content-Type: text/calendar" \
       --data-binary "BEGIN:VCALENDAR
@@ -120,8 +126,7 @@ BEGIN:VEVENT
 UID:${UID_VAL}
 DTSTART:${DTSTART}
 DTEND:${DTEND}
-SUMMARY:${SUMMARY}
-${DESC_LINE}
+SUMMARY:${SUMMARY}${DESC_LINE}
 STATUS:${STATUS}
 END:VEVENT
 END:VCALENDAR" \
